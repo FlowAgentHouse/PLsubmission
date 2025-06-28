@@ -4,48 +4,44 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --background: 0 0% 3%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 145 80% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 280 60% 50%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 145 80% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 145 80% 50%;
     --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    
+    /* Official Flow Colors */
+    --flow-green: #00EF8B;
+    --flow-green-dark: #02D87E;
+    --flow-black: #000000;
+    --flow-white: #FFFFFF;
+    --flow-blue-light: #99BBFF;
+    --flow-blue: #3334F8;
+    --flow-blue-dark: #1D2374;
+    --flow-aqua-light: #9DF1F2;
+    --flow-aqua: #37DDDF;
+    --flow-aqua-dark: #101828;
+    --flow-purple-light: #E0CCFF;
+    --flow-purple: #823EE4;
+    --flow-purple-dark: #50268C;
+    --flow-pink-light: #F9E9FB;
+    --flow-pink: #F4C6FA;
+    --flow-pink-dark: #6D3974;
   }
 }
 
@@ -55,34 +51,385 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Epilogue', sans-serif;
   }
 }
 
-/* Custom animations for casino feel */
-@keyframes glow {
-  0%,
-  100% {
-    box-shadow: 0 0 5px rgba(168, 85, 247, 0.4);
+/* Enhanced Flow Animations */
+@keyframes flow-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 239, 139, 0.4),
+                0 0 40px rgba(0, 239, 139, 0.2),
+                inset 0 0 20px rgba(0, 239, 139, 0.1);
   }
   50% {
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+    box-shadow: 0 0 30px rgba(0, 239, 139, 0.6),
+                0 0 60px rgba(0, 239, 139, 0.3),
+                inset 0 0 30px rgba(0, 239, 139, 0.2);
   }
 }
 
-.glow {
-  animation: glow 2s ease-in-out infinite;
-}
-
-@keyframes pulse-slow {
-  0%,
-  100% {
+@keyframes flow-pulse {
+  0%, 100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.8;
+    transform: scale(1.05);
   }
 }
 
-.pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Enhanced Dice Loader (Inspired by uiverse.io) */
+.dice-loader {
+  width: 54px;
+  height: 54px;
+  position: relative;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  border: 2px solid var(--flow-green);
+  box-shadow: 0 0 20px rgba(0, 239, 139, 0.4);
+  background-image: 
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0),
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0),
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0),
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0),
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0),
+    radial-gradient(circle 5px, var(--flow-green) 100%, transparent 0);
+  background-repeat: no-repeat;
+  animation: dice-move 4s linear infinite, dice-rotate 2s linear infinite;
+}
+
+@keyframes dice-rotate {
+  0%, 20% { transform: rotate(0deg); }
+  30%, 40% { transform: rotate(90deg); }
+  50%, 60% { transform: rotate(180deg); }
+  70%, 80% { transform: rotate(270deg); }
+  90%, 100% { transform: rotate(360deg); }
+}
+
+@keyframes dice-move {
+  0%, 9% { background-position: -12px -15px, -12px 0px, -12px 15px, 12px -15px, 12px 0px, 12px 15px; }
+  10%, 25% { background-position: 0px -15px, -12px 0px, -12px 15px, 34px -15px, 12px 0px, 12px 15px; }
+  30%, 45% { background-position: 0px -34px, -12px -10px, -12px 12px, 34px -15px, 12px -10px, 12px 12px; }
+  50%, 65% { background-position: 0px -34px, -12px -34px, -12px 12px, 34px -12px, 0px -10px, 12px 12px; }
+  70%, 85% { background-position: 0px -34px, -12px -34px, 0px 12px, 34px -12px, 0px -10px, 34px 12px; }
+  90%, 100% { background-position: 0px -34px, -12px -34px, 0px 0px, 34px -12px, 0px 0px, 34px 12px; }
+}
+
+/* Flow Light Button (Inspired by uiverse.io) */
+.flow-light-button {
+  position: relative;
+  height: 200px;
+  display: flex;
+  align-items: flex-end;
+  outline: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-decoration: none;
+}
+
+.flow-light-button .button-holder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  width: 100%;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  border-radius: var(--radius);
+  color: #aeaeae;
+  font-weight: 700;
+  font-size: 1.1rem;
+  transition: all 300ms ease;
+  outline: 2px solid #2a2a2a;
+  outline-offset: 20px;
+  z-index: 10;
+  position: relative;
+  overflow: hidden;
+}
+
+.flow-light-button .button-holder::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 239, 139, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.flow-light-button .button-holder svg {
+  height: 36px;
+  width: 36px;
+  margin-bottom: 8px;
+  fill: #aeaeae;
+  transition: all 300ms ease;
+  z-index: 2;
+  position: relative;
+}
+
+.flow-light-button .light-holder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 200px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.flow-light-button .light-holder .dot {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  background-color: var(--flow-green);
+  border-radius: 10px;
+  z-index: 2;
+  box-shadow: 0 0 15px var(--flow-green), 0 0 25px var(--flow-green);
+}
+
+.flow-light-button .light-holder .light {
+  position: absolute;
+  top: 0;
+  width: 200px;
+  height: 200px;
+  clip-path: polygon(50% 0%, 30% 100%, 70% 100%);
+  background: transparent;
+  transition: background 300ms ease-in-out;
+}
+
+.flow-light-button:hover .button-holder {
+  color: var(--flow-green);
+  outline: 2px solid var(--flow-green);
+  outline-offset: 4px;
+  transform: translateY(-2px);
+}
+
+.flow-light-button:hover .button-holder::before {
+  left: 100%;
+}
+
+.flow-light-button:hover .button-holder svg {
+  fill: var(--flow-green);
+  transform: scale(1.1);
+}
+
+.flow-light-button:hover .light-holder .light {
+  background: linear-gradient(
+    180deg,
+    var(--flow-green) 0%,
+    rgba(0, 239, 139, 0.5) 50%,
+    rgba(0, 239, 139, 0) 70%
+  );
+}
+
+/* Enhanced Flow Cards */
+.flow-card {
+  background: linear-gradient(135deg, 
+    rgba(0, 239, 139, 0.08) 0%, 
+    rgba(130, 62, 228, 0.08) 50%, 
+    rgba(51, 52, 248, 0.08) 100%
+  );
+  border: 1px solid rgba(0, 239, 139, 0.3);
+  backdrop-filter: blur(20px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.flow-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 239, 139, 0.1), transparent);
+  transition: left 0.6s ease;
+}
+
+.flow-card:hover::before {
+  left: 100%;
+}
+
+.flow-card:hover {
+  border-color: var(--flow-green);
+  box-shadow: 
+    0 0 30px rgba(0, 239, 139, 0.3),
+    0 20px 40px rgba(0, 0, 0, 0.3);
+  transform: translateY(-8px) scale(1.02);
+}
+
+/* Enhanced Flow Buttons */
+.flow-button {
+  background: linear-gradient(135deg, var(--flow-green) 0%, var(--flow-green-dark) 100%);
+  background-size: 200% 200%;
+  color: black;
+  font-weight: 600;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: gradient-shift 3s ease-in-out infinite;
+}
+
+.flow-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.flow-button:hover::before { 
+  width: 300px; 
+  height: 300px; 
+}
+
+.flow-button:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 
+    0 15px 35px rgba(0, 239, 139, 0.4),
+    0 5px 15px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, var(--flow-green-dark) 0%, var(--flow-green) 100%);
+}
+
+/* Animated Text Effect */
+.animated-text {
+  background: linear-gradient(
+    135deg,
+    var(--flow-green) 0%,
+    var(--flow-aqua) 25%,
+    var(--flow-blue) 50%,
+    var(--flow-purple) 75%,
+    var(--flow-green) 100%
+  );
+  background-size: 300% 300%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 4s ease-in-out infinite;
+}
+
+/* Floating Animation */
+.floating {
+  animation: float 6s ease-in-out infinite;
+}
+
+.floating:nth-child(2) {
+  animation-delay: 2s;
+}
+
+.floating:nth-child(3) {
+  animation-delay: 4s;
+}
+
+/* Enhanced VRF Badge */
+.vrf-badge {
+  background: linear-gradient(135deg, rgba(0, 239, 139, 0.1) 0%, rgba(0, 239, 139, 0.05) 100%);
+  border: 1px solid rgba(0, 239, 139, 0.3);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.vrf-badge:hover {
+  background: linear-gradient(135deg, rgba(0, 239, 139, 0.15) 0%, rgba(0, 239, 139, 0.1) 100%);
+  border-color: var(--flow-green);
+  box-shadow: 0 0 20px rgba(0, 239, 139, 0.3);
+}
+
+/* Pulse Animation for Icons */
+.pulse-icon {
+  animation: flow-pulse 2s ease-in-out infinite;
+}
+
+/* Particle Background */
+.particle-bg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: var(--flow-green);
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: particle-float 8s linear infinite;
+}
+
+@keyframes particle-float {
+  0% {
+    transform: translateY(100vh) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-100px) translateX(100px);
+    opacity: 0;
+  }
+}
+
+/* Responsive Design Enhancements */
+@media (max-width: 768px) {
+  .flow-light-button {
+    height: 150px;
+  }
+  
+  .flow-light-button .button-holder {
+    height: 80px;
+    font-size: 1rem;
+  }
+  
+  .flow-light-button .button-holder svg {
+    height: 28px;
+    width: 28px;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--flow-green) 0%, var(--flow-purple) 100%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, var(--flow-green-dark) 0%, var(--flow-purple-dark) 100%);
 }

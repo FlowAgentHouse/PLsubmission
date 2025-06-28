@@ -1,48 +1,71 @@
-import { BrowserProvider, Contract, JsonRpcProvider } from "ethers"
+import { BrowserProvider, Contract, formatEther, parseEther } from "ethers"
 import type { Signer } from "ethers"
-import Web3Modal from "web3modal"
+import contractAbi from "../abi/DicePoker.json"
 
-let web3Modal: Web3Modal
-let provider: BrowserProvider | null = null
-let signer: Signer | null = null
-
-const CONTRACT_ADDRESS = "0xD382f910789b8AEad4f41B5ea27e6E058c3f9cCf"
-// Use environment variable first, fallback to hardcoded
-const SEPOLIA_RPC_URL =
-  process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/0d4aa52670ca4855b637394cb6d0f9ab"
-
-const DICE_POKER_ABI = [
-  "function currentState() view returns (uint8)",
-  "function players(uint256) view returns (address)",
-  "function bets(uint256) view returns (uint256)",
-  "function playerDice(uint256, uint256) view returns (uint8)",
-  "function currentBet() view returns (uint256)",
-  "function roundBet(address) view returns (uint256)",
-  "function joinGame()",
-  "function placeBet() payable",
-  "function call() payable",
-  "function fold()",
-  "function rollDice()",
-  "function resetIfExpired()",
-]
-
-export function initWeb3() {
-  if (typeof window !== "undefined") {
-    web3Modal = new Web3Modal({
-      cacheProvider: true,
-      providerOptions: {},
-    })
+// Flow EVM Testnet Configuration
+const FLOW_TESTNET_CONFIG = {
+  chainId: 545,
+  name: "Flow EVM Testnet",
+  rpcUrl: "https://testnet.evm.nodes.onflow.org",
+  blockExplorer: "https://evm-testnet.flowscan.io",
+  nativeCurrency: {
+    name: "Flow",
+    symbol: "FLOW",
+    decimals: 18
   }
 }
 
-export async function connectWallet(): Promise<{ provider: BrowserProvider; signer: Signer }> {
-  try {
-    const instance = await web3Modal.connect()
-    provider = new BrowserProvider(instance)
-    signer = await provider.getSigner()
+const CONTRACT_ADDRESS = "0xC0933C5440c656464D1Eb1F886422bE3466B1459"
 
-    // Test the connection
-    await signer.getAddress()
+let provider: BrowserProvider | null = null
+let signer: Signer | null = null
+let contract: Contract | null = null
+
+export const initWeb3 = () => {
+  // Web3 will be initialized when user connects wallet
+}
+
+export const connectWallet = async () => {
+  if (!window.ethereum) {
+    throw new Error("Please install MetaMask or another Web3 wallet")
+  }
+
+  try {
+    // Request account access
+    await window.ethereum.request({ method: "eth_requestAccounts" })
+
+    // Check if we need to switch to Flow Testnet
+    const chainId = await window.ethereum.request({ method: "eth_chainId" })
+    const currentChainId = parseInt(chainId, 16)
+
+    if (currentChainId !== FLOW_TESTNET_CONFIG.chainId) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: `0x${FLOW_TESTNET_CONFIG.chainId.toString(16)}` }],
+        })
+      } catch (switchError: any) {
+        // Chain not added to MetaMask
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: `0x${FLOW_TESTNET_CONFIG.chainId.toString(16)}`,
+              chainName: FLOW_TESTNET_CONFIG.name,
+              nativeCurrency: FLOW_TESTNET_CONFIG.nativeCurrency,
+              rpcUrls: [FLOW_TESTNET_CONFIG.rpcUrl],
+              blockExplorerUrls: [FLOW_TESTNET_CONFIG.blockExplorer],
+            }],
+          })
+        } else {
+          throw switchError
+        }
+      }
+    }
+
+    provider = new BrowserProvider(window.ethereum)
+    signer = await provider.getSigner()
+    contract = new Contract(CONTRACT_ADDRESS, contractAbi.abi, signer)
 
     return { provider, signer }
   } catch (error) {
@@ -51,60 +74,40 @@ export async function connectWallet(): Promise<{ provider: BrowserProvider; sign
   }
 }
 
-export async function disconnectWallet() {
-  if (web3Modal) {
-    await web3Modal.clearCachedProvider()
-  }
+export const disconnectWallet = async () => {
   provider = null
   signer = null
+  contract = null
 }
 
-export function getSigner(): Signer {
-  if (!signer) throw new Error("Wallet not connected")
-  return signer
+export const getDicePokerContract = () => {
+  if (!contract || !signer) {
+    throw new Error("Please connect your wallet first")
+  }
+  return contract
 }
 
-export function getProvider(): BrowserProvider {
-  if (!provider) throw new Error("Wallet not connected")
-  return provider
-}
-
-export function getDicePokerContract(): Contract {
-  const currentSigner = getSigner()
-  return new Contract(CONTRACT_ADDRESS, DICE_POKER_ABI, currentSigner)
-}
-
-// Helper function to check if contract exists using multiple RPC endpoints
-export async function checkContractExists(): Promise<{ exists: boolean; rpcUsed: string; error?: string }> {
-  const rpcEndpoints = [
-    SEPOLIA_RPC_URL,
-    "https://1rpc.io/sepolia",
-    "https://sepolia.infura.io/v3/0d4aa52670ca4855b637394cb6d0f9ab",
-    "https://rpc.sepolia.org",
-  ]
-
-  for (const rpcUrl of rpcEndpoints) {
-    try {
-      console.log(`Trying RPC: ${rpcUrl}`)
-      const testProvider = new JsonRpcProvider(rpcUrl)
-      const code = await testProvider.getCode(CONTRACT_ADDRESS)
-      const exists = code !== "0x"
-      console.log(`RPC ${rpcUrl} - Contract exists: ${exists}, Code length: ${code.length}`)
-
-      if (exists) {
-        return { exists: true, rpcUsed: rpcUrl }
-      }
-    } catch (error) {
-      console.error(`RPC ${rpcUrl} failed:`, error)
-      continue
+export const checkContractExists = async () => {
+  try {
+    if (!provider) {
+      provider = new BrowserProvider(window.ethereum || FLOW_TESTNET_CONFIG.rpcUrl)
+    }
+    const code = await provider.getCode(CONTRACT_ADDRESS)
+    return {
+      exists: code !== "0x",
+      error: code === "0x" ? "Contract not deployed at this address" : null
+    }
+  } catch (error: any) {
+    return {
+      exists: false,
+      error: `Failed to check contract: ${error.message}`
     }
   }
-
-  return { exists: false, rpcUsed: "none", error: "Contract not found on any RPC endpoint" }
 }
 
-// Helper function to get contract with read-only provider
-export function getReadOnlyContract(): Contract {
-  const readProvider = new JsonRpcProvider(SEPOLIA_RPC_URL)
-  return new Contract(CONTRACT_ADDRESS, DICE_POKER_ABI, readProvider)
+// Extend window interface for TypeScript
+declare global {
+  interface Window {
+    ethereum?: any
+  }
 }
