@@ -13,7 +13,7 @@ import {
   Shield, Brain, Sparkles
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
-import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists } from "@/lib/web3"
+import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
 import Link from "next/link"
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -64,7 +64,7 @@ export default function PvEGamePage() {
   const [betAmount, setBetAmount] = useState("")
   const [gameState, setGameState] = useState(0)
   const [players, setPlayers] = useState([ZERO_ADDRESS, ZERO_ADDRESS])
-  const [bets, setBets] = useState([0n, 0n])
+  const [bets, setBets] = useState([BigInt(0), BigInt(0)])
   const [playerDice, setPlayerDice] = useState([
     [0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0],
@@ -73,12 +73,20 @@ export default function PvEGamePage() {
   const [isMyTurn, setIsMyTurn] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isRolling, setIsRolling] = useState(false)
-  const [pot, setPot] = useState(0n)
+  const [pot, setPot] = useState(BigInt(0))
   const [aiStatus, setAiStatus] = useState("")
   const [aiThinking, setAiThinking] = useState(false)
 
   useEffect(() => {
     initWeb3()
+    // Try to auto-connect if previously connected
+    autoConnectWallet().then((result) => {
+      if (result) {
+        setProvider(result.provider)
+        setSigner(result.signer)
+        result.signer.getAddress().then(setAccount)
+      }
+    }).catch(console.error)
   }, [])
 
   useEffect(() => {
@@ -185,10 +193,10 @@ export default function PvEGamePage() {
       setPlayers([player1, player2])
 
       const [bet1, bet2] = await Promise.all([contract.bets(0), contract.bets(1)])
-      setBets([bet1, bet2])
+      setBets([BigInt(bet1.toString()), BigInt(bet2.toString())])
 
       const potValue = await contract.pot()
-      setPot(potValue)
+      setPot(BigInt(potValue.toString()))
 
       const dice1 = []
       const dice2 = []
@@ -212,25 +220,25 @@ export default function PvEGamePage() {
     try {
       setAiThinking(true)
       const aiMessages = [
-        "AI is analyzing the game state...",
-        "AI is calculating optimal move...",
-        "AI is considering its options...",
-        "AI is processing with quantum algorithms...",
-        "AI is running simulations..."
+        "Dealer is analyzing the game state...",
+        "Dealer is calculating optimal move...",
+        "Dealer is considering its options...",
+        "Dealer is processing with quantum algorithms...",
+        "Dealer is running simulations..."
       ]
       setAiStatus(aiMessages[Math.floor(Math.random() * aiMessages.length)])
       
       // Simulate AI thinking time
       await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000))
       
-      setAiStatus("AI made its move")
+      setAiStatus("Dealer made its move")
       setTimeout(() => {
         setAiStatus("")
         setAiThinking(false)
       }, 2000)
     } catch (err) {
       console.error("AI simulation failed:", err)
-      setAiStatus("AI is recalibrating...")
+      setAiStatus("Dealer is recalibrating...")
       setTimeout(() => {
         setAiStatus("")
         setAiThinking(false)
@@ -249,9 +257,9 @@ export default function PvEGamePage() {
       await tx.wait()
 
       // Simulate AI joining as player 2
-      setAiStatus("AI is joining the game...")
+      setAiStatus("Dealer is joining the game...")
       setTimeout(() => {
-        setAiStatus("AI has joined! Game starting...")
+        setAiStatus("Dealer has joined! Game starting...")
         setTimeout(() => setAiStatus(""), 2000)
       }, 2000)
 
@@ -293,9 +301,13 @@ export default function PvEGamePage() {
 
       const currentBet = await contract.currentBet()
       const roundCommitted = await contract.roundBet(account)
-      const toCall = currentBet - roundCommitted
+      
+      // Ensure we're working with BigInt values
+      const currentBetBigInt = BigInt(currentBet.toString())
+      const roundCommittedBigInt = BigInt(roundCommitted.toString())
+      const toCall = currentBetBigInt - roundCommittedBigInt
 
-      if (toCall === 0n) {
+      if (toCall <= BigInt(0)) {
         setError("Nothing to call")
         return
       }
@@ -390,8 +402,8 @@ export default function PvEGamePage() {
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mb-4">
               <Bot className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold text-white">Player vs AI</CardTitle>
-            <p className="text-gray-400">Connect your wallet to challenge our AI on Flow</p>
+            <CardTitle className="text-2xl font-bold text-white">Challenge the Dealer</CardTitle>
+            <p className="text-gray-400">Connect your wallet to challenge our dealer on Flow</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button
@@ -436,7 +448,7 @@ export default function PvEGamePage() {
               <Bot className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">Player vs AI</h1>
+              <h1 className="text-3xl font-bold text-white">Challenge the Dealer</h1>
               <p className="text-gray-400">Flow EVM Testnet</p>
             </div>
           </div>
@@ -549,14 +561,14 @@ export default function PvEGamePage() {
             </CardContent>
           </Card>
 
-          {/* AI Player */}
+          {/* Dealer */}
           <Card className="flow-card border-green-600 shadow-green-500/20 shadow-xl">
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
                 <span className="flex items-center">
                   <Bot className="w-5 h-5 mr-2 text-green-400" />
-                  AI (Player 2)
-                  <Badge className="ml-2 bg-green-600">AI</Badge>
+                  Dealer (Player 2)
+                  <Badge className="ml-2 bg-green-600">Dealer</Badge>
                 </span>
                 <div className="flex items-center space-x-2">
                   <Coins className="w-4 h-4 text-yellow-400" />
@@ -564,7 +576,7 @@ export default function PvEGamePage() {
                 </div>
               </CardTitle>
               <p className="text-gray-400 text-sm font-mono">
-                {players[1] === ZERO_ADDRESS ? "AI will join automatically..." : `${players[1].slice(0, 6)}...${players[1].slice(-4)}`}
+                {players[1] === ZERO_ADDRESS ? "Dealer will join automatically..." : `${players[1].slice(0, 6)}...${players[1].slice(-4)}`}
               </p>
             </CardHeader>
             <CardContent>
@@ -608,7 +620,7 @@ export default function PvEGamePage() {
                 ) : (
                   <>
                     <Bot className="w-5 h-5 mr-2" />
-                    Start Game vs AI
+                    Start Game vs Dealer
                   </>
                 )}
               </Button>
@@ -688,7 +700,7 @@ export default function PvEGamePage() {
               <div className="text-center py-8">
                 <div className="inline-flex items-center space-x-3">
                   <Bot className="w-6 h-6 text-green-400 pulse-icon" />
-                  <span className="text-gray-400">AI is thinking...</span>
+                  <span className="text-gray-400">Dealer is thinking...</span>
                   <DominoLoader />
                 </div>
               </div>

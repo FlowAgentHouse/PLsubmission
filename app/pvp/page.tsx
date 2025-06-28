@@ -13,7 +13,7 @@ import {
   Shield, Zap, Sparkles
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
-import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists } from "@/lib/web3"
+import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
 import Link from "next/link"
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -64,7 +64,7 @@ export default function PvPGamePage() {
   const [betAmount, setBetAmount] = useState("")
   const [gameState, setGameState] = useState(0)
   const [players, setPlayers] = useState([ZERO_ADDRESS, ZERO_ADDRESS])
-  const [bets, setBets] = useState([0n, 0n])
+  const [bets, setBets] = useState([BigInt(0), BigInt(0)])
   const [playerDice, setPlayerDice] = useState([
     [0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0],
@@ -73,10 +73,18 @@ export default function PvPGamePage() {
   const [isMyTurn, setIsMyTurn] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isRolling, setIsRolling] = useState(false)
-  const [pot, setPot] = useState(0n)
+  const [pot, setPot] = useState(BigInt(0))
 
   useEffect(() => {
     initWeb3()
+    // Try to auto-connect if previously connected
+    autoConnectWallet().then((result) => {
+      if (result) {
+        setProvider(result.provider)
+        setSigner(result.signer)
+        result.signer.getAddress().then(setAccount)
+      }
+    }).catch(console.error)
   }, [])
 
   useEffect(() => {
@@ -176,10 +184,10 @@ export default function PvPGamePage() {
       setPlayers([player1, player2])
 
       const [bet1, bet2] = await Promise.all([contract.bets(0), contract.bets(1)])
-      setBets([bet1, bet2])
+      setBets([BigInt(bet1.toString()), BigInt(bet2.toString())])
 
       const potValue = await contract.pot()
-      setPot(potValue)
+      setPot(BigInt(potValue.toString()))
 
       const dice1 = []
       const dice2 = []
@@ -246,9 +254,13 @@ export default function PvPGamePage() {
 
       const currentBet = await contract.currentBet()
       const roundCommitted = await contract.roundBet(account)
-      const toCall = currentBet - roundCommitted
+      
+      // Ensure we're working with BigInt values
+      const currentBetBigInt = BigInt(currentBet.toString())
+      const roundCommittedBigInt = BigInt(roundCommitted.toString())
+      const toCall = currentBetBigInt - roundCommittedBigInt
 
-      if (toCall === 0n) {
+      if (toCall <= BigInt(0)) {
         setError("Nothing to call")
         return
       }

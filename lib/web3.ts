@@ -1,5 +1,6 @@
-import { BrowserProvider, Contract, formatEther, parseEther } from "ethers"
+import { BrowserProvider, Contract } from "ethers"
 import type { Signer } from "ethers"
+import Web3Modal from "web3modal"
 import contractAbi from "../abi/DicePoker.json"
 
 // Flow EVM Testnet Configuration
@@ -17,37 +18,47 @@ const FLOW_TESTNET_CONFIG = {
 
 const CONTRACT_ADDRESS = "0xC0933C5440c656464D1Eb1F886422bE3466B1459"
 
+let web3Modal: Web3Modal
 let provider: BrowserProvider | null = null
 let signer: Signer | null = null
 let contract: Contract | null = null
 
-export const initWeb3 = () => {
-  // Web3 will be initialized when user connects wallet
+export function initWeb3() {
+  if (typeof window !== "undefined") {
+    web3Modal = new Web3Modal({
+      cacheProvider: true,
+      providerOptions: {
+        // Add provider options here if needed for WalletConnect, etc.
+      },
+      theme: "dark"
+    })
+  }
 }
 
-export const connectWallet = async () => {
-  if (!window.ethereum) {
-    throw new Error("Please install MetaMask or another Web3 wallet")
-  }
-
+export async function connectWallet(): Promise<{ provider: BrowserProvider; signer: Signer }> {
   try {
-    // Request account access
-    await window.ethereum.request({ method: "eth_requestAccounts" })
+    if (!web3Modal) {
+      throw new Error("Web3Modal not initialized")
+    }
 
+    const instance = await web3Modal.connect()
+    provider = new BrowserProvider(instance)
+    
     // Check if we need to switch to Flow Testnet
-    const chainId = await window.ethereum.request({ method: "eth_chainId" })
-    const currentChainId = parseInt(chainId, 16)
+    const network = await provider.getNetwork()
+    const currentChainId = Number(network.chainId)
 
     if (currentChainId !== FLOW_TESTNET_CONFIG.chainId) {
       try {
-        await window.ethereum.request({
+        // Request to switch to Flow Testnet
+        await instance.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: `0x${FLOW_TESTNET_CONFIG.chainId.toString(16)}` }],
         })
       } catch (switchError: any) {
-        // Chain not added to MetaMask
+        // Chain not added to wallet
         if (switchError.code === 4902) {
-          await window.ethereum.request({
+          await instance.request({
             method: "wallet_addEthereumChain",
             params: [{
               chainId: `0x${FLOW_TESTNET_CONFIG.chainId.toString(16)}`,
@@ -61,11 +72,30 @@ export const connectWallet = async () => {
           throw switchError
         }
       }
+      
+      // Recreate provider after network switch
+      provider = new BrowserProvider(instance)
     }
 
-    provider = new BrowserProvider(window.ethereum)
     signer = await provider.getSigner()
     contract = new Contract(CONTRACT_ADDRESS, contractAbi.abi, signer)
+
+    // Set up event listeners for account/network changes
+    if (instance.on) {
+      instance.on("accountsChanged", (accounts: string[]) => {
+        if (accounts.length === 0) {
+          disconnectWallet()
+        } else {
+          // Reload the page or update the account
+          window.location.reload()
+        }
+      })
+
+      instance.on("chainChanged", () => {
+        // Reload the page when network changes
+        window.location.reload()
+      })
+    }
 
     return { provider, signer }
   } catch (error) {
@@ -74,25 +104,36 @@ export const connectWallet = async () => {
   }
 }
 
-export const disconnectWallet = async () => {
+export async function disconnectWallet() {
+  if (web3Modal) {
+    await web3Modal.clearCachedProvider()
+  }
   provider = null
   signer = null
   contract = null
 }
 
-export const getDicePokerContract = () => {
+export function getSigner(): Signer {
+  if (!signer) throw new Error("Wallet not connected")
+  return signer
+}
+
+export function getProvider(): BrowserProvider {
+  if (!provider) throw new Error("Wallet not connected")
+  return provider
+}
+
+export function getDicePokerContract() {
   if (!contract || !signer) {
     throw new Error("Please connect your wallet first")
   }
   return contract
 }
 
-export const checkContractExists = async () => {
+export async function checkContractExists() {
   try {
-    if (!provider) {
-      provider = new BrowserProvider(window.ethereum || FLOW_TESTNET_CONFIG.rpcUrl)
-    }
-    const code = await provider.getCode(CONTRACT_ADDRESS)
+    const currentProvider = provider || new BrowserProvider((window as any).ethereum || FLOW_TESTNET_CONFIG.rpcUrl)
+    const code = await currentProvider.getCode(CONTRACT_ADDRESS)
     return {
       exists: code !== "0x",
       error: code === "0x" ? "Contract not deployed at this address" : null
@@ -105,9 +146,15 @@ export const checkContractExists = async () => {
   }
 }
 
-// Extend window interface for TypeScript
-declare global {
-  interface Window {
-    ethereum?: any
+// Auto-reconnect if cached
+export async function autoConnectWallet(): Promise<{ provider: BrowserProvider; signer: Signer } | null> {
+  try {
+    if (web3Modal?.cachedProvider) {
+      return await connectWallet()
+    }
+    return null
+  } catch (error) {
+    console.error("Auto-connect failed:", error)
+    return null
   }
 }
