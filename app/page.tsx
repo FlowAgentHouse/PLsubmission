@@ -97,7 +97,7 @@ export default function HomePage() {
                 <div className="text-xs text-gray-400">FLOW Fee</div>
               </div>
               <div className="text-center space-y-1">
-                <div className="text-2xl font-bold text-purple-400">&lt;1s</div>
+              <div className="text-2xl font-bold text-purple-400">&lt;1s</div>
                 <div className="text-xs text-gray-400">Transaction</div>
               </div>
               <div className="text-center space-y-1">
@@ -109,7 +109,7 @@ export default function HomePage() {
         </div>
 
         {/* Enhanced Game Mode Selection */}
-        <div className="grid lg:grid-cols-2 gap-8 mb-12">
+        <div className="grid lg:grid-cols-2 gap-12 mb-12">
           {/* Player vs Player */}
           <Card className="flow-card group relative">
             <CardHeader className="text-center pb-6">
@@ -123,9 +123,11 @@ export default function HomePage() {
                   <span className="text-sm font-bold">Player vs Player</span>
                 </div>
               </div>
+            </CardHeader>
+            <div className="text-center px-6 pb-6">
               <CardTitle className="text-3xl text-white mb-3">Competitive Arena</CardTitle>
               <p className="text-gray-400">Challenge real opponents in high-stakes battles</p>
-            </CardHeader>
+            </div>
             <CardContent className="space-y-6">
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
@@ -156,7 +158,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Player vs AI */}
+          {/* Challenge the Dealer */}
           <Card className="flow-card group relative">
             <CardHeader className="text-center pb-6">
               <div className="flow-light-button mx-auto">
@@ -166,19 +168,21 @@ export default function HomePage() {
                 </div>
                 <div className="button-holder">
                   <Bot className="w-10 h-10" />
-                  <span className="text-sm font-bold">Player vs AI</span>
+                  <span className="text-sm font-bold">Challenge the Dealer</span>
                 </div>
               </div>
-              <CardTitle className="text-3xl text-white mb-3">Practice Arena</CardTitle>
-              <p className="text-gray-400">Master your skills against our AI opponent</p>
             </CardHeader>
+            <div className="text-center px-6 pb-6">
+              <CardTitle className="text-3xl text-white mb-3">Practice Arena</CardTitle>
+              <p className="text-gray-400">Master your skills against our AI dealer</p>
+            </div>
             <CardContent className="space-y-6">
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                   <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
                     <Bot className="w-4 h-4 text-green-400" />
                   </div>
-                  <span className="text-gray-300">AI automatically joins & plays</span>
+                  <span className="text-gray-300">Dealer automatically joins & plays</span>
                 </div>
                 <div className="flex items-center gap-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                   <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -195,7 +199,7 @@ export default function HomePage() {
               </div>
               <a href="/pve" className="block">
                 <Button className="w-full flow-button text-lg py-6 group">
-                  Challenge AI
+                  Challenge Dealer
                   <Play className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
                 </Button>
               </a>
