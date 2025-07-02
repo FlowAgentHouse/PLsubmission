@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import {
   Dice1, Dice2, Dice3, Dice4, Dice5, Dice6,
   Wallet, Users, Trophy, Coins, Loader2, ArrowLeft,
-  Shield, Zap, Sparkles
+  Shield, Zap, Sparkles, Crown, RefreshCw, Gift,
+  CheckCircle, Clock
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
 import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
@@ -74,6 +75,9 @@ export default function PvPGamePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [isRolling, setIsRolling] = useState(false)
   const [pot, setPot] = useState(BigInt(0))
+  const [winner, setWinner] = useState<string>(ZERO_ADDRESS)
+  const [gameStarted, setGameStarted] = useState(false)
+  const [gameEndedTimestamp, setGameEndedTimestamp] = useState(0)
 
   useEffect(() => {
     initWeb3()
@@ -188,6 +192,16 @@ export default function PvPGamePage() {
 
       const potValue = await contract.pot()
       setPot(BigInt(potValue.toString()))
+
+      // Load winner and game status
+      const winnerAddress = await contract.winner()
+      setWinner(winnerAddress)
+
+      const gameStartedStatus = await contract.gameStarted()
+      setGameStarted(gameStartedStatus)
+
+      const gameEndedTime = await contract.gameEndedTimestamp()
+      setGameEndedTimestamp(Number(gameEndedTime))
 
       const dice1 = []
       const dice2 = []
@@ -324,6 +338,24 @@ export default function PvPGamePage() {
     }
   }
 
+  const handleResetGame = async () => {
+    if (!signer) return
+
+    try {
+      setIsProcessing(true)
+      setError(null)
+      const contract = getDicePokerContract()
+      const tx = await contract.resetIfExpired()
+      await tx.wait()
+      await loadGameData()
+    } catch (err: any) {
+      console.error("Failed to reset game:", err)
+      setError(err.message || "Failed to reset game")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const maskDice = (dice: number[], state: number) => {
     let revealed = 0
     if (state >= 23) revealed = 5
@@ -337,6 +369,9 @@ export default function PvPGamePage() {
   const canJoin = gameState === 0 && myPlayerIndex === -1 && players.includes(ZERO_ADDRESS)
   const canBet = isMyTurn && [1, 2, 3, 4, 7, 8, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22].includes(gameState)
   const canRoll = isMyTurn && [5, 6, 11, 12, 17, 18, 23, 24].includes(gameState)
+  const isGameEnded = gameState >= 25 || winner !== ZERO_ADDRESS
+  const isWinner = winner !== ZERO_ADDRESS && winner.toLowerCase() === account?.toLowerCase()
+  const canReset = gameEndedTimestamp > 0 && (Date.now() / 1000) > gameEndedTimestamp + 300 // 5 minutes after game ended
 
   if (!account) {
     return (
@@ -420,6 +455,29 @@ export default function PvPGamePage() {
           </div>
         </div>
 
+        {/* Winner Announcement */}
+        {isGameEnded && winner !== ZERO_ADDRESS && (
+          <Card className="flow-card border-yellow-500/50 bg-gradient-to-r from-yellow-500/10 to-orange-500/10">
+            <CardContent className="py-6">
+              <div className="flex items-center justify-center space-x-4">
+                <Crown className="w-8 h-8 text-yellow-400 pulse-icon" />
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-yellow-400">
+                    {isWinner ? "🎉 Congratulations! You Won!" : "Game Over"}
+                  </h3>
+                  <p className="text-gray-300">
+                    Winner: {winner.slice(0, 6)}...{winner.slice(-4)}
+                  </p>
+                  <p className="text-yellow-400 font-semibold">
+                    Prize: {formatEther(pot)} FLOW
+                  </p>
+                </div>
+                <Trophy className="w-8 h-8 text-yellow-400 pulse-icon" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Game State & Pot */}
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="flow-card">
@@ -470,12 +528,14 @@ export default function PvPGamePage() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Player 1 */}
           <Card 
-            className={`flow-card ${myPlayerIndex === 0 ? 'border-blue-500 shadow-blue-500/20 shadow-xl' : ''}`}
+            className={`flow-card ${myPlayerIndex === 0 ? 'border-blue-500 shadow-blue-500/20 shadow-xl' : ''} ${winner === players[0] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30 shadow-xl' : ''}`}
           >
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
                 <span className="flex items-center">
-                  Player 1 {myPlayerIndex === 0 && <Badge className="ml-2 bg-blue-600">You</Badge>}
+                  Player 1 
+                  {myPlayerIndex === 0 && <Badge className="ml-2 bg-blue-600">You</Badge>}
+                  {winner === players[0] && winner !== ZERO_ADDRESS && <Crown className="w-5 h-5 ml-2 text-yellow-400" />}
                 </span>
                 <div className="flex items-center space-x-2">
                   <Coins className="w-4 h-4 text-yellow-400" />
@@ -497,17 +557,26 @@ export default function PvPGamePage() {
                   />
                 ))}
               </div>
+              {isGameEnded && (
+                <div className="text-center mt-4">
+                  <p className="text-gray-400 text-sm">
+                    Total: {playerDice[0].reduce((a, b) => a + b, 0)}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Player 2 */}
           <Card 
-            className={`flow-card ${myPlayerIndex === 1 ? 'border-purple-500 shadow-purple-500/20 shadow-xl' : ''}`}
+            className={`flow-card ${myPlayerIndex === 1 ? 'border-purple-500 shadow-purple-500/20 shadow-xl' : ''} ${winner === players[1] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30 shadow-xl' : ''}`}
           >
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
                 <span className="flex items-center">
-                  Player 2 {myPlayerIndex === 1 && <Badge className="ml-2 bg-purple-600">You</Badge>}
+                  Player 2 
+                  {myPlayerIndex === 1 && <Badge className="ml-2 bg-purple-600">You</Badge>}
+                  {winner === players[1] && winner !== ZERO_ADDRESS && <Crown className="w-5 h-5 ml-2 text-yellow-400" />}
                 </span>
                 <div className="flex items-center space-x-2">
                   <Coins className="w-4 h-4 text-yellow-400" />
@@ -529,6 +598,13 @@ export default function PvPGamePage() {
                   />
                 ))}
               </div>
+              {isGameEnded && (
+                <div className="text-center mt-4">
+                  <p className="text-gray-400 text-sm">
+                    Total: {playerDice[1].reduce((a, b) => a + b, 0)}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -542,6 +618,57 @@ export default function PvPGamePage() {
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
                 {error}
+              </div>
+            )}
+
+            {/* Winner can claim winnings */}
+            {isGameEnded && isWinner && pot > BigInt(0) && (
+              <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-lg p-6 text-center">
+                <div className="flex items-center justify-center space-x-3 mb-4">
+                  <Gift className="w-8 h-8 text-yellow-400" />
+                  <h3 className="text-xl font-bold text-yellow-400">Claim Your Winnings!</h3>
+                </div>
+                <p className="text-gray-300 mb-4">
+                  You won {formatEther(pot)} FLOW! The winnings will be automatically transferred to your wallet.
+                </p>
+                <div className="flex items-center justify-center space-x-2 text-green-400">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Winnings will be claimed automatically</span>
+                </div>
+              </div>
+            )}
+
+            {/* Reset game option */}
+            {isGameEnded && canReset && (
+              <Button
+                onClick={handleResetGame}
+                disabled={isProcessing}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Resetting Game...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-5 h-5 mr-2" />
+                    Start New Game
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Game ended but can't reset yet */}
+            {isGameEnded && !canReset && gameEndedTimestamp > 0 && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
+                <div className="flex items-center justify-center space-x-2 text-blue-400 mb-2">
+                  <Clock className="w-5 h-5" />
+                  <span>Game Reset Available Soon</span>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  New game can be started 5 minutes after game completion
+                </p>
               </div>
             )}
 
@@ -635,7 +762,7 @@ export default function PvPGamePage() {
               </Button>
             )}
 
-            {!isMyTurn && myPlayerIndex !== -1 && gameState > 0 && gameState < 27 && (
+            {!isMyTurn && myPlayerIndex !== -1 && gameState > 0 && gameState < 27 && !isGameEnded && (
               <div className="text-center py-8">
                 <DominoLoader />
                 <p className="text-gray-400 mt-4">Waiting for opponent...</p>
