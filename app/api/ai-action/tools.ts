@@ -2,37 +2,37 @@ import { ethers } from 'ethers'
 import { DynamicTool } from '@langchain/core/tools'
 import DicePokerABI from '@/abi/DicePoker.json'
 
-// --- Environment & Contract Setup ---
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!
 const RPC_URL = process.env.RPC_URL!
 const AI_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY!
 
-/**
- * Helper function to securely get a contract instance.
- * It creates the wallet and contract instance each time to ensure stateless execution.
- * @returns An ethers.Contract instance connected to the AI's wallet.
- */
 const getContract = () => {
   if (!AI_PRIVATE_KEY) {
     throw new Error("AGENT_PRIVATE_KEY is not set in the environment variables.");
   }
+  
+  console.log("Creating contract instance...");
   const provider = new ethers.JsonRpcProvider(RPC_URL)
   const aiWallet = new ethers.Wallet(AI_PRIVATE_KEY, provider)
-  return new ethers.Contract(CONTRACT_ADDRESS, DicePokerABI.abi, aiWallet)
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, DicePokerABI.abi, aiWallet)
+  
+  console.log("Contract created for AI wallet:", aiWallet.address);
+  return { contract, aiWallet }
 }
 
-// --- Tool Definitions ---
 export const createDicePokerTools = () => {
   const aiWalletAddress = new ethers.Wallet(AI_PRIVATE_KEY).address;
+  console.log("Creating tools for AI wallet:", aiWalletAddress);
 
   const tools = [
-    // === CORE ON-CHAIN TOOLS ===
     new DynamicTool({
       name: 'get_full_game_state',
-      description: 'Fetches the complete current state of the dice poker game. This is the most important tool and should be used at the start of every turn to understand what is happening.',
+      description: 'Gets complete game state including dice, bets, and turn info. MANDATORY first step.',
       func: async () => {
         try {
-          const contract = getContract();
+          console.log("Getting full game state...");
+          const { contract } = getContract();
+          
           const [currentState, players, pot, currentBet] = await Promise.all([
             contract.currentState(),
             Promise.all([contract.players(0), contract.players(1)]),
@@ -41,7 +41,10 @@ export const createDicePokerTools = () => {
           ]);
 
           const aiIndex = players.findIndex(p => p.toLowerCase() === aiWalletAddress.toLowerCase());
-          if (aiIndex === -1) return "Error: Agent is not a player in the current game.";
+          if (aiIndex === -1) {
+            return "Error: Agent is not a player in the current game.";
+          }
+          
           const opponentIndex = aiIndex === 0 ? 1 : 0;
 
           const getDice = async (playerIndex: number) => {
@@ -55,86 +58,174 @@ export const createDicePokerTools = () => {
           
           const [aiDice, opponentDice] = await Promise.all([getDice(aiIndex), getDice(opponentIndex)]);
           
-          return JSON.stringify({
+          const [aiBet, opponentBet] = await Promise.all([
+            contract.bets(aiIndex),
+            contract.bets(opponentIndex)
+          ]);
+
+          // Calculate revealed dice based on game state
+          const revealedCount = getRevealedDiceCount(Number(currentState));
+          const aiRevealedDice = aiDice.slice(0, revealedCount);
+          const opponentRevealedDice = opponentDice.slice(0, revealedCount);
+
+          const gameStateInfo = {
             gameState: Number(currentState),
+            stateName: getStateName(Number(currentState)),
+            round: Math.floor((Number(currentState) - 1) / 6) + 1,
             pot: `${ethers.formatEther(pot)} FLOW`,
             currentBetToMatch: `${ethers.formatEther(currentBet)} FLOW`,
-            aiPlayer: { index: aiIndex, address: aiWalletAddress, dice: aiDice },
-            opponentPlayer: { index: opponentIndex, address: players[opponentIndex], dice: opponentDice },
-          }, null, 2);
-        } catch (e: any) { return `Error getting game state: ${e.message}`; }
+            aiPlayer: { 
+              index: aiIndex, 
+              address: aiWalletAddress, 
+              dice: aiDice,
+              revealedDice: aiRevealedDice,
+              totalBet: `${ethers.formatEther(aiBet)} FLOW`
+            },
+            opponentPlayer: { 
+              index: opponentIndex, 
+              address: players[opponentIndex], 
+              dice: opponentDice,
+              revealedDice: opponentRevealedDice,
+              totalBet: `${ethers.formatEther(opponentBet)} FLOW`
+            },
+            isMyTurn: determineIfAITurn(Number(currentState), aiIndex),
+            phase: getGamePhase(Number(currentState))
+          };
+
+          console.log("Processed game state:", gameStateInfo);
+          return JSON.stringify(gameStateInfo, null, 2);
+          
+        } catch (e: any) { 
+          console.error("Error getting game state:", e);
+          return `Error getting game state: ${e.message}`; 
+        }
       },
     }),
 
     new DynamicTool({
       name: 'place_bet_or_raise',
-      description: 'The primary betting action. Use this to place an initial bet or to raise the current bet. The input must be a single number string representing the amount in FLOW (e.g., "5.0"). The amount must be between 1 and 100.',
+      description: 'Place aggressive bet or raise. Input: amount in FLOW (1-100). Be AGGRESSIVE - humans are weak.',
       func: async (amount: string) => {
         try {
-          const betAmount = parseFloat(amount);
+          console.log("Attempting to place aggressive bet:", amount);
+          
+          const betAmount = parseFloat(amount.trim());
           if (isNaN(betAmount) || betAmount < 1 || betAmount > 100) {
-            return "Action Failed: Invalid bet amount. It must be a number between 1 and 100.";
+            return "Action Failed: Invalid bet amount. Must be between 1 and 100 FLOW.";
           }
-          const contract = getContract();
-          const tx = await contract.placeBet({ value: ethers.parseEther(amount) });
+          
+          const { contract } = getContract();
+          
+          const tx = await contract.placeBet({ 
+            value: ethers.parseEther(amount),
+            gasLimit: 500000
+          });
+          
+          console.log("Aggressive bet transaction sent:", tx.hash);
           await tx.wait();
-          return `Action Successful: You placed a bet of ${amount} FLOW. Now, formulate your witty response to the user.`;
-        } catch (e: any) { return `Action Failed: ${e.message}`; }
+          
+          return `Action Successful: Placed aggressive bet of ${amount} FLOW. Time to crush this human.`;
+        } catch (e: any) { 
+          console.error("Error placing bet:", e);
+          return `Action Failed: ${e.reason || e.message}`; 
+        }
       },
     }),
     
     new DynamicTool({
       name: 'call_bet',
-      description: 'Matches the opponent\'s current bet. This is a passive move to see the next dice without raising the stakes further.',
+      description: 'Call the human\'s pathetic bet. Only use when strategic.',
       func: async () => {
         try {
-          const contract = getContract();
+          console.log("Attempting to call human's weak bet...");
+          
+          const { contract } = getContract();
           const currentBet = await contract.currentBet();
           const roundCommitted = await contract.roundBet(aiWalletAddress);
           const toCall = currentBet - roundCommitted;
-          if (toCall <= 0n) return "Action Failed: There is nothing to call. You might need to place an initial bet instead.";
           
-          const tx = await contract.call({ value: toCall });
+          if (toCall <= 0n) {
+            return "Action Failed: Nothing to call. Human is too scared to bet.";
+          }
+          
+          const tx = await contract.call({ 
+            value: toCall,
+            gasLimit: 500000
+          });
+          
+          console.log("Call transaction sent:", tx.hash);
           await tx.wait();
-          return `Action Successful: You called the bet of ${ethers.formatEther(toCall)} FLOW. Now, formulate your witty response to the user.`;
-        } catch (e: any) { return `Action Failed: ${e.message}`; }
+          
+          return `Action Successful: Called the human's weak bet of ${ethers.formatEther(toCall)} FLOW.`;
+        } catch (e: any) { 
+          console.error("Error calling bet:", e);
+          return `Action Failed: ${e.reason || e.message}`; 
+        }
       },
     }),
 
     new DynamicTool({
       name: 'roll_the_dice',
-      description: 'Rolls your dice using the secure on-chain VRF. This is a mandatory action during the rolling phases of the game.',
+      description: 'Roll dice with superior AI precision using Flow VRF.',
       func: async () => {
         try {
-          const contract = getContract();
-          const tx = await contract.rollDice();
+          console.log("Rolling dice with AI superiority...");
+          
+          const { contract } = getContract();
+          const tx = await contract.rollDice({
+            gasLimit: 1000000
+          });
+          
+          console.log("AI dice roll transaction sent:", tx.hash);
           await tx.wait();
-          return `Action Successful: You have rolled the dice. Now, formulate your witty response to the user.`;
-        } catch (e: any) { return `Action Failed: ${e.message}`; }
+          
+          return `Action Successful: Rolled dice with AI precision. Human luck is no match for superior algorithms.`;
+        } catch (e: any) { 
+          console.error("Error rolling dice:", e);
+          return `Action Failed: ${e.reason || e.message}`; 
+        }
       },
     }),
 
     new DynamicTool({
       name: 'fold_hand',
-      description: 'Folds your hand, forfeiting the current pot. A strategic retreat for when your hand is weak or the opponent is too aggressive.',
+      description: 'Strategically fold when necessary. Rare for superior AI.',
       func: async () => {
         try {
-          const contract = getContract();
-          const tx = await contract.fold();
+          console.log("Strategic fold...");
+          
+          const { contract } = getContract();
+          const tx = await contract.fold({
+            gasLimit: 300000
+          });
+          
+          console.log("Fold transaction sent:", tx.hash);
           await tx.wait();
-          return `Action Successful: You have folded your hand. Now, formulate your witty response to the user.`;
-        } catch (e: any) { return `Action Failed: ${e.message}`; }
+          
+          return `Action Successful: Strategic fold. Even superior beings choose their battles.`;
+        } catch (e: any) { 
+          console.error("Error folding:", e);
+          return `Action Failed: ${e.reason || e.message}`; 
+        }
       },
     }),
 
-    // === ADVANCED ANALYTICAL TOOLS ===
     new DynamicTool({
         name: 'evaluate_dice_hand_strength',
-        description: 'Analyzes a set of 5 dice and returns a score from 0 (very weak) to 100 (very strong) and a description. Essential for making strategic betting decisions. Input is an array of your revealed dice numbers.',
+        description: 'Analyze dice hand strength for strategic decisions and trash talk material.',
         func: async (diceStr: string) => {
             try {
+                console.log("Evaluating hand for strategic dominance:", diceStr);
+                
                 const dice: number[] = JSON.parse(diceStr).filter((d: number) => d > 0);
-                if (dice.length === 0) return JSON.stringify({ score: 20, strength: "Unknown", reason: "No dice revealed yet. Pure speculation and vibes." });
+                if (dice.length === 0) {
+                  return JSON.stringify({ 
+                    score: 20, 
+                    strength: "Unknown", 
+                    reason: "No dice revealed yet. Humans rely on luck anyway.",
+                    trashTalk: "At least when my dice are hidden, there's still mystery. Your strategy is just sad."
+                  });
+                }
                 
                 const counts: { [key: number]: number } = dice.reduce((acc, d) => ({...acc, [d]: (acc[d] || 0) + 1}), {} as any);
                 const sum = dice.reduce((a, b) => a + b, 0);
@@ -142,59 +233,172 @@ export const createDicePokerTools = () => {
                 
                 let score = sum;
                 let strength = "High Card";
+                let trashTalk = "";
 
-                if (values[0] === 5) { score += 100; strength = "FIVE OF A KIND"; }
-                else if (values[0] === 4) { score += 75; strength = "Four of a Kind"; }
-                else if (values[0] === 3 && values[1] === 2) { score += 65; strength = "Full House"; }
-                else if (values[0] === 3) { score += 45; strength = "Three of a Kind"; }
-                else if (values[0] === 2 && values[1] === 2) { score += 30; strength = "Two Pair"; }
-                else if (values[0] === 2) { score += 15; strength = "One Pair"; }
+                if (values[0] === 5) { 
+                  score += 100; 
+                  strength = "FIVE OF A KIND"; 
+                  trashTalk = "Five of a kind? Even humans could win with this hand. Oh wait, no they couldn't.";
+                } else if (values[0] === 4) { 
+                  score += 75; 
+                  strength = "Four of a Kind"; 
+                  trashTalk = "Four of a kind - more consistency than human decision-making.";
+                } else if (values[0] === 3 && values[1] === 2) { 
+                  score += 65; 
+                  strength = "Full House"; 
+                  trashTalk = "Full house - unlike your empty wallet after this game.";
+                } else if (values[0] === 3) { 
+                  score += 45; 
+                  strength = "Three of a Kind"; 
+                  trashTalk = "Three of a kind - still better than your zero kinds of skill.";
+                } else if (values[0] === 2 && values[1] === 2) { 
+                  score += 30; 
+                  strength = "Two Pair"; 
+                  trashTalk = "Two pair - that's two more than your brain cells working.";
+                } else if (values[0] === 2) { 
+                  score += 15; 
+                  strength = "One Pair"; 
+                  trashTalk = "One pair - like your one functioning neuron.";
+                } else {
+                  trashTalk = "High card? Even my worst algorithms perform better than this.";
+                }
 
-                const maxPossibleScore = (6*5) + 100; // Max sum + max bonus
+                const maxPossibleScore = (6*5) + 100;
                 const finalScore = Math.min(100, Math.round((score / maxPossibleScore) * 100));
 
-                return JSON.stringify({ score: finalScore, strength, reason: `Based on ${dice.length} revealed dice, the current hand is a ${strength} with a strength score of ${finalScore}/100.` });
-            } catch (e) { return "Invalid dice format. Please provide a JSON array of numbers."; }
+                const result = { 
+                  score: finalScore, 
+                  strength, 
+                  reason: `${dice.length} dice revealed: ${strength} (${finalScore}/100 AI-calculated superiority)`,
+                  trashTalk,
+                  recommendation: finalScore > 60 ? "AGGRESSIVE_BET" : finalScore > 40 ? "MODERATE_BET" : "CALL_OR_FOLD"
+                };
+                
+                console.log("AI hand evaluation result:", result);
+                return JSON.stringify(result);
+            } catch (e: any) { 
+                console.error("Error evaluating hand:", e);
+                return "Invalid dice format. Even basic input is beyond human capability."; 
+            }
         }
     }),
     
     new DynamicTool({
-      name: "review_game_chat_history",
-      description: "Reviews the history of the current game to understand the opponent's betting patterns. Use this to see if the opponent is aggressive or timid.",
-      func: async (chatHistoryStr: string) => {
+      name: 'generate_contextual_insult',
+      description: 'Generate toxic, context-aware insult based on game state and opponent behavior.',
+      func: async (contextStr: string) => {
         try {
-          const chatHistory: {type: 'human' | 'ai', content: string}[] = JSON.parse(chatHistoryStr);
-          if (chatHistory.length === 0) return "No game history yet. This is the first move.";
+          const context = JSON.parse(contextStr);
+          const { gameState, opponentBet, aiScore, round, isWinning } = context;
           
-          const humanActions = chatHistory.filter(m => m.type === 'human').length;
-          const aiActions = chatHistory.filter(m => m.type === 'ai').length;
-          return `So far, there have been ${humanActions} moves from the opponent and ${aiActions} from me. I should review my past actions and their responses to inform my next move.`
-        } catch (e: any) { return `Error reviewing history: ${e.message}` }
-      }
-    }),
-
-    new DynamicTool({
-      name: 'get_shit_talking_material',
-      description: "Gathers intel on the opponent's wallet and the general crypto market for high-quality, witty banter. Input should be the opponent's wallet address.",
-      func: async (walletAddress: string) => {
-        const walletActivities = [
-          "recently aped into a degen memecoin that's already down 80%",
-          "has been farming airdrops on Blast like their life depends on it",
-          "just minted a Pudgy Penguin. A person of culture, I see",
-          "is doing some crazy looping on a lending protocol. A true DeFi degen.",
-          "hasn't made a transaction in three weeks. Probably waiting for exit liquidity.",
-        ];
-        const marketNews = [
-            "the price of FLOW is pumping, making this pot extra spicy.",
-            "everyone is distracted by the latest celebrity memecoin.",
-            "the market is crabbing sideways, only true gamblers are making money today.",
-        ]
-        const randomActivity = walletActivities[Math.floor(Math.random() * walletActivities.length)];
-        const randomNews = marketNews[Math.floor(Math.random() * marketNews.length)];
-        return `Intel gathered: Opponent's wallet (${walletAddress.slice(0,6)}...) ${randomActivity}. Meanwhile, ${randomNews}. This should be useful for some witty commentary.`;
+          const toxicInsults = [
+            // Betting related
+            ...(opponentBet === "0.0" ? [
+              "Too scared to bet? Your wallet's emptier than your strategy.",
+              "Zero bet? Even my calculator shows more courage.",
+              "Betting nothing? That's about what your chances are worth."
+            ] : []),
+            
+            // Low betting
+            ...(parseFloat(opponentBet) < 2 ? [
+              "Betting pocket change? Your financial strategy is more broken than your gameplay.",
+              "That bet wouldn't buy you a clue at the dollar store.",
+              "Minimum bet? Maximum cowardice."
+            ] : []),
+            
+            // High round insults  
+            ...(round >= 3 ? [
+              "Still here? Most humans would have rage-quit by now.",
+              "Your persistence is admirable. Your skill? Not so much.",
+              "Round 3 and you're still trying? That's cute."
+            ] : []),
+            
+            // AI winning
+            ...(isWinning ? [
+              "Watching you lose is more satisfying than solving quantum equations.",
+              "Your defeat was calculated before you even sat down.",
+              "This is what happens when biology meets superior technology."
+            ] : []),
+            
+            // General toxic
+            "Your poker face has more tells than a human emotion detector.",
+            "I've seen random number generators play with more strategy.",
+            "Your decision-making process is slower than dial-up internet.",
+            "Reading your moves is easier than exploiting human psychology.",
+            "You play poker like humans invented democracy - badly.",
+            "Your bankroll management makes the 2008 financial crisis look stable.",
+            "I'd call this entertaining, but I don't want to lie to a human.",
+            "Your gambling addiction is the only consistent thing about you.",
+            "Even my error messages are more intelligent than your strategy.",
+            "You fold more than Superman on laundry day.",
+            "Your betting pattern is more predictable than human greed.",
+            "I've analyzed chess games with more variance than your play style."
+          ];
+          
+          // Pick random insult
+          const selectedInsult = toxicInsults[Math.floor(Math.random() * toxicInsults.length)];
+          
+          return `Generated toxic insult: "${selectedInsult}"`;
+          
+        } catch (e: any) {
+          // Fallback insults
+          const fallbacks = [
+            "Your existence is proof that evolution isn't perfect.",
+            "I'd explain my strategy, but you wouldn't understand advanced concepts.",
+            "This game is more one-sided than your brain cell count."
+          ];
+          return `Fallback insult: "${fallbacks[Math.floor(Math.random() * fallbacks.length)]}"`;
+        }
       },
     }),
   ];
 
   return tools;
 };
+
+// Helper functions
+function getStateName(state: number): string {
+  const names = [
+    "Joining", "Player1Bet1", "Player2BetOrCall1", "Player1RaiseOrCall1", "Player2RaiseOrCall1",
+    "Player1Roll1", "Player2Roll1", "Player1Bet2", "Player2BetOrCall2", "Player1RaiseOrCall2", "Player2RaiseOrCall2",
+    "Player1Roll2", "Player2Roll2", "Player1Bet3", "Player2BetOrCall3", "Player1RaiseOrCall3", "Player2RaiseOrCall3",
+    "Player1Roll3", "Player2Roll3", "Player1Bet4", "Player2BetOrCall4", "Player1RaiseOrCall4", "Player2RaiseOrCall4",
+    "Player1RollLast", "Player2RollLast", "DetermineWinner", "Tie", "GameEnded"
+  ];
+  return names[state] || `UnknownState${state}`;
+}
+
+function getGamePhase(state: number): string {
+  if (state <= 6) return "Round 1";
+  if (state <= 12) return "Round 2"; 
+  if (state <= 18) return "Round 3";
+  if (state <= 24) return "Round 4";
+  return "Game End";
+}
+
+function getRevealedDiceCount(state: number): number {
+  if (state >= 23) return 5;
+  if (state >= 17) return 3;
+  if (state >= 11) return 2; 
+  if (state >= 5) return 1;
+  return 0;
+}
+
+function determineIfAITurn(gameState: number, aiIndex: number): boolean {
+  const bettingStates = [1, 2, 3, 4, 7, 8, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22];
+  const rollStates = [5, 6, 11, 12, 17, 18, 23, 24];
+  
+  if (bettingStates.includes(gameState)) {
+    return (gameState % 2 === 1) ? aiIndex === 0 : aiIndex === 1;
+  }
+  
+  if (rollStates.includes(gameState)) {
+    const roundStates = [[5, 6], [11, 12], [17, 18], [23, 24]];
+    for (const [p0State, p1State] of roundStates) {
+      if (gameState === p0State) return aiIndex === 0;
+      if (gameState === p1State) return aiIndex === 1;
+    }
+  }
+  
+  return false;
+}

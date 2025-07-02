@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { BrowserProvider } from "ethers"
+import { useState, useEffect, useRef } from "react"
 import type { Signer } from "ethers"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +10,7 @@ import {
   Dice1, Dice2, Dice3, Dice4, Dice5, Dice6,
   Wallet, Bot, Trophy, Coins, Loader2, ArrowLeft,
   Shield, Brain, Sparkles, Crown, RefreshCw, Gift,
-  CheckCircle, Clock
+  CheckCircle, Clock, Terminal
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
 import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
@@ -20,16 +19,11 @@ import Link from "next/link"
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 const STATE_NAMES = [
-  "Joining",
-  "Player1Bet1", "Player2BetOrCall1", "Player1RaiseOrCall1", "Player2RaiseOrCall1",
-  "Player1Roll1", "Player2Roll1",
-  "Player1Bet2", "Player2BetOrCall2", "Player1RaiseOrCall2", "Player2RaiseOrCall2",
-  "Player1Roll2", "Player2Roll2",
-  "Player1Bet3", "Player2BetOrCall3", "Player1RaiseOrCall3", "Player2RaiseOrCall3",
-  "Player1Roll3", "Player2Roll3",
-  "Player1Bet4", "Player2BetOrCall4", "Player1RaiseOrCall4", "Player2RaiseOrCall4",
-  "Player1RollLast", "Player2RollLast",
-  "DetermineWinner", "Tie", "GameEnded"
+  "Joining", "Player1Bet1", "Player2BetOrCall1", "Player1RaiseOrCall1", "Player2RaiseOrCall1",
+  "Player1Roll1", "Player2Roll1", "Player1Bet2", "Player2BetOrCall2", "Player1RaiseOrCall2", "Player2RaiseOrCall2",
+  "Player1Roll2", "Player2Roll2", "Player1Bet3", "Player2BetOrCall3", "Player1RaiseOrCall3", "Player2RaiseOrCall3",
+  "Player1Roll3", "Player2Roll3", "Player1Bet4", "Player2BetOrCall4", "Player1RaiseOrCall4", "Player2RaiseOrCall4",
+  "Player1RollLast", "Player2RollLast", "DetermineWinner", "Tie", "GameEnded"
 ]
 
 const DICE_ICONS = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6]
@@ -55,9 +49,102 @@ const DiceDisplay = ({ value, isRevealed, isRolling }: { value: number; isReveal
   )
 }
 
+// Interactive Chat Component
+const InteractiveChat = ({ 
+  history, 
+  onSendMessage, 
+  isProcessing 
+}: { 
+  history: {role: 'human' | 'ai', content: string}[], 
+  onSendMessage: (message: string) => void,
+  isProcessing: boolean 
+}) => {
+    const logContainerRef = useRef<HTMLDivElement>(null);
+    const [chatInput, setChatInput] = useState("");
+
+    useEffect(() => {
+        if (logContainerRef.current) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
+    }, [history]);
+
+    const handleSendMessage = () => {
+        if (chatInput.trim() && !isProcessing) {
+            onSendMessage(chatInput.trim());
+            setChatInput("");
+        }
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    return (
+        <Card className="flow-card">
+            <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                    <Terminal className="w-5 h-5 mr-2 text-gray-400" />
+                    Chat
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* Chat Messages */}
+                <div 
+                    ref={logContainerRef} 
+                    className="bg-black/50 rounded-lg p-4 h-48 overflow-y-auto font-mono text-sm space-y-2"
+                >
+                    {history.length === 0 && (
+                        <p className="text-gray-500">Start chatting with the dealer...</p>
+                    )}
+                    {history.map((entry, index) => (
+                        <div key={index} className="flex items-start">
+                            <span className={`mr-2 font-bold ${
+                                entry.role === 'ai' ? 'text-red-400' : 'text-blue-400'
+                            }`}>
+                                {entry.role === 'ai' ? '[Dealer]:' : '[You]:'}
+                            </span>
+                            <p className="whitespace-pre-wrap break-words text-gray-300">
+                                {entry.content}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Chat Input */}
+                <div className="flex space-x-2">
+                    <Input
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Trash talk the dealer..."
+                        className="bg-gray-800 border-gray-700 text-white flex-1"
+                        disabled={isProcessing}
+                        maxLength={200}
+                    />
+                    <Button
+                        onClick={handleSendMessage}
+                        disabled={!chatInput.trim() || isProcessing}
+                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white min-w-[80px]"
+                    >
+                        {isProcessing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            "Send"
+                        )}
+                    </Button>
+                </div>
+                
+
+            </CardContent>
+        </Card>
+    )
+}
+
 export default function PvEGamePage() {
   const [account, setAccount] = useState<string | null>(null)
-  const [provider, setProvider] = useState<BrowserProvider | null>(null)
   const [signer, setSigner] = useState<Signer | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -75,28 +162,35 @@ export default function PvEGamePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [isRolling, setIsRolling] = useState(false)
   const [pot, setPot] = useState(BigInt(0))
+  const [winner, setWinner] = useState<string>(ZERO_ADDRESS)
+  const [gameEndedTimestamp, setGameEndedTimestamp] = useState(0)
+
+  // AI Agent State
   const [aiStatus, setAiStatus] = useState("")
   const [aiThinking, setAiThinking] = useState(false)
-  const [winner, setWinner] = useState<string>(ZERO_ADDRESS)
+  const [lastAgentMessage, setLastAgentMessage] = useState("")
+  const [chatHistory, setChatHistory] = useState<{role: 'human' | 'ai', content: string}[]>([])
+  
+  // Game state tracking
   const [gameStarted, setGameStarted] = useState(false)
-  const [gameEndedTimestamp, setGameEndedTimestamp] = useState(0)
+  const [aiJoinAttempted, setAiJoinAttempted] = useState(false)
 
   useEffect(() => {
     initWeb3()
-    // Try to auto-connect if previously connected
     autoConnectWallet().then((result) => {
       if (result) {
-        setProvider(result.provider)
         setSigner(result.signer)
         result.signer.getAddress().then(setAccount)
       }
     }).catch(console.error)
   }, [])
 
+  // Load game data when account is available
   useEffect(() => {
     if (account) {
       loadGameData()
-      const interval = setInterval(loadGameData, 2000) // Faster polling for AI game
+      // Set up polling for game state updates
+      const interval = setInterval(loadGameData, 3000)
       return () => clearInterval(interval)
     }
   }, [account])
@@ -113,55 +207,66 @@ export default function PvEGamePage() {
       setIsMyTurn(false)
       return
     }
-
-    const bettingStates = [
-      [1, 2, 3, 4],
-      [7, 8, 9, 10],
-      [13, 14, 15, 16],
-      [19, 20, 21, 22],
-    ]
-    const rollStates = [
-      [5, 6],
-      [11, 12],
-      [17, 18],
-      [23, 24],
-    ]
-
+    const bettingStates = [[1, 2, 3, 4], [7, 8, 9, 10], [13, 14, 15, 16], [19, 20, 21, 22]]
+    const rollStates = [[5, 6], [11, 12], [17, 18], [23, 24]]
     let turn = -1
-    for (const round of bettingStates) {
-      if (round.includes(gameState)) {
-        turn = gameState % 2 === 1 ? 0 : 1
-        break
-      }
+    for (const round of bettingStates) { 
+      if (round.includes(gameState)) { 
+        turn = gameState % 2 === 1 ? 0 : 1; 
+        break 
+      } 
     }
-    for (const round of rollStates) {
-      if (round.includes(gameState)) {
-        turn = round[0] === gameState ? 0 : 1
-        break
-      }
+    for (const round of rollStates) { 
+      if (round.includes(gameState)) { 
+        turn = round[0] === gameState ? 0 : 1; 
+        break 
+      } 
     }
-
     setIsMyTurn(turn === myPlayerIndex)
   }, [gameState, myPlayerIndex])
 
-  // Simulate AI actions when it's AI's turn
+  // AI Auto-Join Logic - Fixed
   useEffect(() => {
-    if (myPlayerIndex === 0 && !isMyTurn && gameState > 0 && gameState < 27 && !winner) {
-      simulateAIAction()
+    const shouldAIJoin = 
+      gameState === 0 && 
+      myPlayerIndex === 0 && // User has joined as player 1
+      players[1] === ZERO_ADDRESS && // Player 2 slot is empty
+      !aiJoinAttempted && // Haven't tried to join AI yet
+      !isProcessing
+
+    if (shouldAIJoin) {
+      console.log("Triggering AI auto-join...")
+      setAiJoinAttempted(true)
+      handleAIJoin()
     }
-  }, [gameState, isMyTurn, myPlayerIndex, winner])
+  }, [gameState, myPlayerIndex, players, aiJoinAttempted, isProcessing])
+
+  // AI Action Logic - Fixed
+  useEffect(() => {
+    const shouldAIAct = 
+      myPlayerIndex === 0 && // User is player 1
+      !isMyTurn && // It's not the user's turn (so it's AI's turn)
+      gameState > 0 && 
+      gameState < 27 && 
+      !aiThinking && 
+      !isProcessing &&
+      winner === ZERO_ADDRESS
+
+    if (shouldAIAct) {
+      console.log("Triggering AI action for state:", gameState)
+      handleAIAction()
+    }
+  }, [isMyTurn, gameState, myPlayerIndex, aiThinking, isProcessing, winner])
 
   const handleConnectWallet = async () => {
     try {
       setLoading(true)
       setError(null)
-      const { provider: web3Provider, signer: web3Signer } = await connectWallet()
-      setProvider(web3Provider)
+      const { signer: web3Signer } = await connectWallet()
       setSigner(web3Signer)
       const address = await web3Signer.getAddress()
       setAccount(address)
     } catch (err: any) {
-      console.error("Failed to connect wallet:", err)
       setError("Failed to connect wallet. Please make sure you're on Flow Testnet.")
     } finally {
       setLoading(false)
@@ -171,13 +276,14 @@ export default function PvEGamePage() {
   const handleDisconnectWallet = async () => {
     await disconnectWallet()
     setAccount(null)
-    setProvider(null)
     setSigner(null)
+    setChatHistory([])
+    setLastAgentMessage("")
+    setAiJoinAttempted(false)
   }
 
   const loadGameData = async () => {
     if (!signer) return
-
     try {
       const contractCheck = await checkContractExists()
       if (!contractCheck.exists) {
@@ -186,222 +292,222 @@ export default function PvEGamePage() {
       }
 
       const contract = getDicePokerContract()
-
-      const state = await Promise.race([
-        contract.currentState(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000)),
-      ])
+      const state = await contract.currentState()
       setGameState(Number(state))
-
-      const [player1, player2] = await Promise.all([contract.players(0), contract.players(1)])
-      setPlayers([player1, player2])
-
-      const [bet1, bet2] = await Promise.all([contract.bets(0), contract.bets(1)])
-      setBets([BigInt(bet1.toString()), BigInt(bet2.toString())])
-
-      const potValue = await contract.pot()
-      setPot(BigInt(potValue.toString()))
-
-      // Load winner and game status
-      const winnerAddress = await contract.winner()
-      setWinner(winnerAddress)
-
-      const gameStartedStatus = await contract.gameStarted()
-      setGameStarted(gameStartedStatus)
-
-      const gameEndedTime = await contract.gameEndedTimestamp()
-      setGameEndedTimestamp(Number(gameEndedTime))
-
-      const dice1 = []
-      const dice2 = []
+      
+      const [p1, p2] = await Promise.all([contract.players(0), contract.players(1)])
+      setPlayers([p1, p2])
+      
+      const [b1, b2] = await Promise.all([contract.bets(0), contract.bets(1)])
+      setBets([BigInt(b1.toString()), BigInt(b2.toString())])
+      
+      setPot(BigInt((await contract.pot()).toString()))
+      setWinner(await contract.winner())
+      setGameEndedTimestamp(Number(await contract.gameEndedTimestamp()))
+      
+      const d1: number[] = [], d2: number[] = []
       for (let i = 0; i < 5; i++) {
-        const [d1, d2] = await Promise.all([contract.playerDice(0, i), contract.playerDice(1, i)])
-        dice1.push(Number(d1))
-        dice2.push(Number(d2))
+        const [pd1, pd2] = await Promise.all([contract.playerDice(0, i), contract.playerDice(1, i)])
+        d1.push(Number(pd1)); d2.push(Number(pd2))
       }
-      setPlayerDice([dice1, dice2])
-
+      setPlayerDice([d1, d2])
       setError(null)
     } catch (err: any) {
       console.error("Error loading game data:", err)
-      if (err.message.includes("Timeout")) {
-        setError("Network timeout. Please check your connection.")
-      }
+      setError("Failed to load game data. Check your connection.")
     }
   }
 
-  const simulateAIAction = async () => {
+  const handleAIJoin = async () => {
+    setAiStatus("Dealer is approaching the table...")
     try {
-      setAiThinking(true)
-      const aiMessages = [
-        "Dealer is analyzing the game state...",
-        "Dealer is calculating optimal move...",
-        "Dealer is considering its options...",
-        "Dealer is processing with quantum algorithms...",
-        "Dealer is running simulations..."
-      ]
-      setAiStatus(aiMessages[Math.floor(Math.random() * aiMessages.length)])
+      const response = await fetch('/api/ai-join', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
       
-      // Simulate AI thinking time
-      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000))
+      const data = await response.json()
       
-      setAiStatus("Dealer made its move")
-      setTimeout(() => {
+      if (!response.ok) {
+        throw new Error(data.error || "AI failed to join")
+      }
+      
+      setAiStatus(data.message)
+      console.log("AI join successful:", data)
+      
+      // Wait a bit then reload game data
+      setTimeout(async () => {
+        await loadGameData()
         setAiStatus("")
-        setAiThinking(false)
       }, 2000)
-    } catch (err) {
-      console.error("AI simulation failed:", err)
-      setAiStatus("Dealer is recalibrating...")
+      
+    } catch (err: any) {
+      console.error("AI join error:", err)
+      setError(`AI join failed: ${err.message}`)
+      setAiStatus("Dealer couldn't find the table...")
+      setAiJoinAttempted(false) // Allow retry
+    }
+  }
+
+  const handleAIAction = async () => {
+    if (!account) return
+    
+    setAiThinking(true)
+    setAiStatus("Dealer is thinking...")
+    
+    try {
+      console.log("Sending AI action request...")
+      const response = await fetch('/api/ai-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerAddress: account,
+          chatHistory: chatHistory,
+        }),
+      })
+
+      const data = await response.json()
+      console.log("AI action response:", data)
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || "AI agent failed to act")
+      }
+
+      setLastAgentMessage(data.message)
+      setChatHistory(data.newHistory || [...chatHistory, { role: 'ai', content: data.message }])
+      setAiStatus("")
+      
+      // Reload game data after AI action
+      setTimeout(loadGameData, 1000)
+      
+    } catch (err: any) {
+      console.error("AI action error:", err)
+      setError(`AI action failed: ${err.message}`)
+      setAiStatus("Dealer is confused...")
+    } finally {
       setTimeout(() => {
-        setAiStatus("")
         setAiThinking(false)
       }, 2000)
     }
   }
+
+  const handleSendChatMessage = async (message: string) => {
+    if (!account) return;
+    
+    try {
+      console.log("Sending chat message:", message);
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerAddress: account,
+          message: message,
+          chatHistory: chatHistory,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("AI chat response:", data);
+
+      if (data.success) {
+        setChatHistory(data.newHistory);
+        if (data.message) {
+          setLastAgentMessage(data.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("Chat error:", err);
+    }
+  };
 
   const handleJoinGame = async () => {
     if (!signer) return
-
+    setIsProcessing(true)
+    setError(null)
     try {
-      setIsProcessing(true)
-      setError(null)
       const contract = getDicePokerContract()
+      setAiStatus("You take a seat at the table...")
       const tx = await contract.joinGame()
       await tx.wait()
-
-      // Simulate AI joining as player 2
-      setAiStatus("Dealer is joining the game...")
-      setTimeout(() => {
-        setAiStatus("Dealer has joined! Game starting...")
-        setTimeout(() => setAiStatus(""), 2000)
-      }, 2000)
-
       await loadGameData()
+      setAiStatus("")
     } catch (err: any) {
-      console.error("Failed to join game:", err)
       setError(err.message || "Failed to join game")
+      setAiStatus("")
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handlePlaceBet = async () => {
-    if (!signer || !betAmount) return
-
+  const handleUserAction = async (action: () => Promise<any>) => {
+    setIsProcessing(true)
+    setError(null)
     try {
-      setIsProcessing(true)
-      setError(null)
-      const contract = getDicePokerContract()
-      const tx = await contract.placeBet({ value: parseEther(betAmount) })
-      await tx.wait()
-      setBetAmount("")
+      await action()
       await loadGameData()
     } catch (err: any) {
-      console.error("Failed to place bet:", err)
-      setError(err.message || "Failed to place bet")
+      setError(err.message || "An unknown error occurred.")
     } finally {
       setIsProcessing(false)
     }
   }
+  
+  const handleResetGame = () => handleUserAction(async () => {
+    const contract = getDicePokerContract()
+    const tx = await contract.resetIfExpired()
+    await tx.wait()
+    setChatHistory([])
+    setLastAgentMessage("")
+    setAiJoinAttempted(false)
+  })
 
-  const handleCall = async () => {
-    if (!signer || !account) return
-
-    try {
-      setIsProcessing(true)
-      setError(null)
-      const contract = getDicePokerContract()
-
-      const currentBet = await contract.currentBet()
-      const roundCommitted = await contract.roundBet(account)
-      
-      // Ensure we're working with BigInt values
-      const currentBetBigInt = BigInt(currentBet.toString())
-      const roundCommittedBigInt = BigInt(roundCommitted.toString())
-      const toCall = currentBetBigInt - roundCommittedBigInt
-
-      if (toCall <= BigInt(0)) {
-        setError("Nothing to call")
+  const handlePlaceBet = () => handleUserAction(async () => {
+    if (!betAmount) {
+        setError("Bet amount cannot be empty.")
         return
-      }
-
-      const tx = await contract.call({ value: toCall })
-      await tx.wait()
-      await loadGameData()
-    } catch (err: any) {
-      console.error("Failed to call:", err)
-      setError(err.message || "Failed to call")
-    } finally {
-      setIsProcessing(false)
     }
-  }
+    const contract = getDicePokerContract()
+    const tx = await contract.placeBet({ value: parseEther(betAmount) })
+    await tx.wait()
+    setBetAmount("")
+    
+    // Add user action to chat history
+    setChatHistory(prev => [...prev, { role: 'human', content: `Placed bet of ${betAmount} FLOW` }])
+  })
 
-  const handleFold = async () => {
-    if (!signer) return
-
-    try {
-      setIsProcessing(true)
-      setError(null)
-      const contract = getDicePokerContract()
-      const tx = await contract.fold()
-      await tx.wait()
-      await loadGameData()
-    } catch (err: any) {
-      console.error("Failed to fold:", err)
-      setError(err.message || "Failed to fold")
-    } finally {
-      setIsProcessing(false)
+  const handleCall = () => handleUserAction(async () => {
+    if (!account) return
+    const contract = getDicePokerContract()
+    const currentBet = await contract.currentBet()
+    const roundCommitted = await contract.roundBet(account)
+    const toCall = BigInt(currentBet.toString()) - BigInt(roundCommitted.toString())
+    if (toCall <= 0n) {
+      setError("Nothing to call")
+      return
     }
-  }
+    const tx = await contract.call({ value: toCall })
+    await tx.wait()
+    
+    setChatHistory(prev => [...prev, { role: 'human', content: `Called bet of ${formatEther(toCall)} FLOW` }])
+  })
 
-  const handleRollDice = async () => {
-    if (!signer) return
+  const handleFold = () => handleUserAction(async () => {
+    const contract = getDicePokerContract()
+    const tx = await contract.fold()
+    await tx.wait()
+    
+    setChatHistory(prev => [...prev, { role: 'human', content: 'Folded hand' }])
+  })
 
-    try {
-      setIsProcessing(true)
-      setIsRolling(true)
-      setError(null)
-      const contract = getDicePokerContract()
-      const tx = await contract.rollDice()
-      await tx.wait()
-      await loadGameData()
-
-      setTimeout(() => setIsRolling(false), 1000)
-
-      if (gameState === 24) {
-        const sum1 = playerDice[0].reduce((a, b) => a + b, 0)
-        const sum2 = playerDice[1].reduce((a, b) => a + b, 0)
-        console.log("Final Results:")
-        console.log(`Player 1: ${playerDice[0].join(", ")} (sum=${sum1})`)
-        console.log(`Player 2: ${playerDice[1].join(", ")} (sum=${sum2})`)
-      }
-    } catch (err: any) {
-      console.error("Failed to roll dice:", err)
-      setError(err.message || "Failed to roll dice")
-      setIsRolling(false)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleResetGame = async () => {
-    if (!signer) return
-
-    try {
-      setIsProcessing(true)
-      setError(null)
-      const contract = getDicePokerContract()
-      const tx = await contract.resetIfExpired()
-      await tx.wait()
-      await loadGameData()
-    } catch (err: any) {
-      console.error("Failed to reset game:", err)
-      setError(err.message || "Failed to reset game")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
+  const handleRollDice = () => handleUserAction(async () => {
+    setIsRolling(true)
+    const contract = getDicePokerContract()
+    const tx = await contract.rollDice()
+    await tx.wait()
+    setTimeout(() => setIsRolling(false), 1000)
+    
+    setChatHistory(prev => [...prev, { role: 'human', content: 'Rolled dice' }])
+  })
 
   const maskDice = (dice: number[], state: number) => {
     let revealed = 0
@@ -409,16 +515,48 @@ export default function PvEGamePage() {
     else if (state >= 17) revealed = 3
     else if (state >= 11) revealed = 2
     else if (state >= 5) revealed = 1
-
     return dice.map((d, i) => ({ value: d, isRevealed: i < revealed }))
   }
 
-  const canJoin = gameState === 0 && myPlayerIndex === -1 && players.includes(ZERO_ADDRESS)
-  const canBet = isMyTurn && [1, 2, 3, 4, 7, 8, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22].includes(gameState)
-  const canRoll = isMyTurn && [5, 6, 11, 12, 17, 18, 23, 24].includes(gameState)
   const isGameEnded = gameState >= 25 || winner !== ZERO_ADDRESS
   const isWinner = winner !== ZERO_ADDRESS && winner.toLowerCase() === account?.toLowerCase()
-  const canReset = gameEndedTimestamp > 0 && (Date.now() / 1000) > gameEndedTimestamp + 300 // 5 minutes after game ended
+  const canReset = gameEndedTimestamp > 0 && (Date.now() / 1000) > gameEndedTimestamp + 300
+  const canBet = isMyTurn && [1, 2, 3, 4, 7, 8, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22].includes(gameState)
+  const canRoll = isMyTurn && [5, 6, 11, 12, 17, 18, 23, 24].includes(gameState)
+  const canJoin = gameState === 0 && myPlayerIndex === -1 && players.includes(ZERO_ADDRESS)
+
+  useEffect(() => {
+    const handleGameOver = async () => {
+      if (isGameEnded && winner !== ZERO_ADDRESS && !lastAgentMessage) {
+        const playerWon = winner.toLowerCase() === account?.toLowerCase();
+        
+        try {
+          const response = await fetch('/api/ai-game-over', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              playerWon,
+              playerAddress: account,
+              finalPot: formatEther(pot)
+            }),
+          });
+  
+          const data = await response.json();
+          if (data.success && data.message) {
+            setLastAgentMessage(data.message);
+            setChatHistory(prev => [...prev, { 
+              role: 'ai', 
+              content: data.message 
+            }]);
+          }
+        } catch (err: any) {
+          console.error("Game over taunt failed:", err);
+        }
+      }
+    };
+  
+    handleGameOver();
+  }, [isGameEnded, winner, account, pot, lastAgentMessage]);
 
   if (!account) {
     return (
@@ -427,12 +565,10 @@ export default function PvEGamePage() {
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/20 rounded-full blur-3xl floating" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl floating" />
         </div>
-        
         <Card className="w-full max-w-md flow-card relative z-10">
           <CardHeader className="text-center">
-            <Link href="/" className="flex items-center text-green-400 mb-4 hover:text-green-300 transition-colors">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
+            <Link href="/" className="flex items-center justify-center text-green-400 mb-4 hover:text-green-300 transition-colors">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
             </Link>
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mb-4">
               <Bot className="w-8 h-8 text-white" />
@@ -441,22 +577,8 @@ export default function PvEGamePage() {
             <p className="text-gray-400">Connect your wallet to challenge our dealer on Flow</p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              onClick={handleConnectWallet}
-              disabled={loading}
-              className="w-full flow-button text-lg py-6"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-5 h-5 mr-2" />
-                  Connect Wallet
-                </>
-              )}
+            <Button onClick={handleConnectWallet} disabled={loading} className="w-full flow-button text-lg py-6">
+              {loading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Connecting...</>) : (<><Wallet className="w-5 h-5 mr-2" />Connect Wallet</>)}
             </Button>
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
           </CardContent>
@@ -471,66 +593,44 @@ export default function PvEGamePage() {
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl floating" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl floating" />
       </div>
-
       <div className="max-w-7xl mx-auto space-y-6 relative z-10">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <Link href="/" className="text-green-400 hover:text-green-300 transition-colors">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-              <Bot className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Challenge the Dealer</h1>
-              <p className="text-gray-400">Flow EVM Testnet</p>
-            </div>
+            <Link href="/" className="text-green-400 hover:text-green-300 transition-colors"><ArrowLeft className="w-6 h-6" /></Link>
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center"><Bot className="w-6 h-6 text-white" /></div>
+            <div><h1 className="text-3xl font-bold text-white">Challenge the Dealer</h1><p className="text-gray-400">Flow EVM Testnet</p></div>
           </div>
           <div className="flex items-center space-x-4">
-            <Badge variant="outline" className="border-green-500 text-green-400">
-              <Wallet className="w-4 h-4 mr-1" />
-              {account.slice(0, 6)}...{account.slice(-4)}
-            </Badge>
-            <Button
-              onClick={handleDisconnectWallet}
-              variant="outline"
-              className="border-red-500 text-red-400 hover:bg-red-500/20"
-            >
-              Disconnect
-            </Button>
+            <Badge variant="outline" className="border-green-500 text-green-400"><Wallet className="w-4 h-4 mr-1" />{account.slice(0, 6)}...{account.slice(-4)}</Badge>
+            <Button onClick={handleDisconnectWallet} variant="outline" className="border-red-500 text-red-400 hover:bg-red-500/20">Disconnect</Button>
           </div>
         </div>
 
-        {/* AI Status */}
-        {aiStatus && (
-          <Card className="flow-card border-green-500/50 bg-green-500/5">
+        {/* AI Status & Banter Display */}
+        {(lastAgentMessage || aiStatus) && (
+          <Card className={`flow-card ${lastAgentMessage ? 'border-purple-500/50 bg-purple-500/5' : 'border-green-500/50 bg-green-500/5'}`}>
             <CardContent className="py-4">
               <div className="flex items-center justify-center space-x-3">
-                <Brain className="w-5 h-5 text-green-400 pulse-icon" />
-                <span className="text-green-400 font-medium">{aiStatus}</span>
-                {aiThinking && <div className="dice-loader scale-75" />}
+                {lastAgentMessage ? <Sparkles className="w-5 h-5 text-purple-400 pulse-icon" /> : <Brain className="w-5 h-5 text-green-400" />}
+                <p className={`font-medium ${lastAgentMessage ? 'text-purple-300 italic' : 'text-green-400'}`}>
+                  {lastAgentMessage ? `"${lastAgentMessage}"` : aiStatus}
+                </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Winner Announcement */}
+        {/* Winner Display */}
         {isGameEnded && winner !== ZERO_ADDRESS && (
           <Card className="flow-card border-yellow-500/50 bg-gradient-to-r from-yellow-500/10 to-orange-500/10">
             <CardContent className="py-6">
               <div className="flex items-center justify-center space-x-4">
                 <Crown className="w-8 h-8 text-yellow-400 pulse-icon" />
                 <div className="text-center">
-                  <h3 className="text-2xl font-bold text-yellow-400">
-                    {isWinner ? "🎉 Congratulations! You Won!" : winner === players[1] ? "🤖 Dealer Wins!" : "Game Over"}
-                  </h3>
-                  <p className="text-gray-300">
-                    Winner: {winner === players[1] ? "Dealer" : `${winner.slice(0, 6)}...${winner.slice(-4)}`}
-                  </p>
-                  <p className="text-yellow-400 font-semibold">
-                    Prize: {formatEther(pot)} FLOW
-                  </p>
+                  <h3 className="text-2xl font-bold text-yellow-400">{isWinner ? "🎉 Congratulations! You Won!" : `🤖 Dealer Wins!`}</h3>
+                  <p className="text-gray-300">Winner: {isWinner ? "You" : "Dealer"}</p>
+                  <p className="text-yellow-400 font-semibold">Prize: {formatEther(pot)} FLOW</p>
                 </div>
                 <Trophy className="w-8 h-8 text-yellow-400 pulse-icon" />
               </div>
@@ -545,15 +645,14 @@ export default function PvEGamePage() {
               <div className="flex justify-between items-center">
                 <CardTitle className="text-xl text-white flex items-center">
                   <Trophy className="w-5 h-5 mr-2 text-yellow-400" />
-                  {STATE_NAMES[gameState]}
+                  {STATE_NAMES[gameState] || `State ${gameState}`}
                 </CardTitle>
                 <Badge className="bg-gradient-to-r from-green-600 to-emerald-600 text-white">
-                  Round {Math.floor((gameState - 1) / 6) + 1}/4
+                  Round {Math.max(1, Math.floor((gameState - 1) / 6) + 1)}/4
                 </Badge>
               </div>
             </CardHeader>
           </Card>
-          
           <Card className="flow-card">
             <CardHeader>
               <div className="flex justify-between items-center">
@@ -569,27 +668,10 @@ export default function PvEGamePage() {
           </Card>
         </div>
 
-        {/* VRF Indicator */}
-        {canRoll && (
-          <Card className="flow-card border-green-500/50 vrf-badge">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-center space-x-4">
-                <Shield className="w-6 h-6 text-green-400 pulse-icon" />
-                <span className="text-green-400 font-semibold">
-                  Ready to roll with Flow Native VRF - Cryptographically Secure Randomness
-                </span>
-                <Sparkles className="w-6 h-6 text-green-400 pulse-icon" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Players */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* Human Player */}
-          <Card 
-            className={`flow-card ${myPlayerIndex === 0 ? 'border-blue-500 shadow-blue-500/20 shadow-xl' : ''} ${winner === players[0] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30 shadow-xl' : ''}`}
-          >
+          <Card className={`flow-card ${myPlayerIndex === 0 ? 'border-blue-500 shadow-blue-500/20 shadow-xl' : ''} ${winner === players[0] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30 shadow-xl' : ''}`}>
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
                 <span className="flex items-center">
@@ -603,34 +685,25 @@ export default function PvEGamePage() {
                 </div>
               </CardTitle>
               <p className="text-gray-400 text-sm font-mono">
-                {players[0] === ZERO_ADDRESS ? "Join to start playing..." : `${players[0].slice(0, 6)}...${players[0].slice(-4)}`}
+                {players[0] === ZERO_ADDRESS ? "Waiting for a challenger..." : `${players[0].slice(0, 6)}...${players[0].slice(-4)}`}
               </p>
             </CardHeader>
             <CardContent>
               <div className="flex space-x-3 justify-center dice-container">
                 {maskDice(playerDice[0], gameState).map((die, index) => (
-                  <DiceDisplay 
-                    key={index} 
-                    value={die.value} 
-                    isRevealed={die.isRevealed}
-                    isRolling={isRolling && myPlayerIndex === 0 && canRoll}
-                  />
+                  <DiceDisplay key={index} value={die.value} isRevealed={die.isRevealed} isRolling={isRolling && myPlayerIndex === 0 && canRoll} />
                 ))}
               </div>
               {isGameEnded && (
                 <div className="text-center mt-4">
-                  <p className="text-gray-400 text-sm">
-                    Total: {playerDice[0].reduce((a, b) => a + b, 0)}
-                  </p>
+                  <p className="text-gray-400 text-sm">Total: {playerDice[0].reduce((a, b) => a + b, 0)}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Dealer */}
-          <Card 
-            className={`flow-card border-green-600 shadow-green-500/20 shadow-xl ${winner === players[1] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30' : ''}`}
-          >
+          <Card className={`flow-card border-green-600 shadow-green-500/20 shadow-xl ${winner === players[1] && winner !== ZERO_ADDRESS ? 'border-yellow-500 shadow-yellow-500/30' : ''}`}>
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
                 <span className="flex items-center">
@@ -645,25 +718,18 @@ export default function PvEGamePage() {
                 </div>
               </CardTitle>
               <p className="text-gray-400 text-sm font-mono">
-                {players[1] === ZERO_ADDRESS ? "Dealer will join automatically..." : `${players[1].slice(0, 6)}...${players[1].slice(-4)}`}
+                {players[1] === ZERO_ADDRESS ? "Waiting for game to start..." : `${players[1].slice(0, 6)}...${players[1].slice(-4)}`}
               </p>
             </CardHeader>
             <CardContent>
               <div className="flex space-x-3 justify-center dice-container">
                 {maskDice(playerDice[1], gameState).map((die, index) => (
-                  <DiceDisplay 
-                    key={index} 
-                    value={die.value} 
-                    isRevealed={die.isRevealed}
-                    isRolling={isRolling && myPlayerIndex === 1 && canRoll}
-                  />
+                  <DiceDisplay key={index} value={die.value} isRevealed={die.isRevealed} />
                 ))}
               </div>
               {isGameEnded && (
                 <div className="text-center mt-4">
-                  <p className="text-gray-400 text-sm">
-                    Total: {playerDice[1].reduce((a, b) => a + b, 0)}
-                  </p>
+                  <p className="text-gray-400 text-sm">Total: {playerDice[1].reduce((a, b) => a + b, 0)}</p>
                 </div>
               )}
             </CardContent>
@@ -672,77 +738,17 @@ export default function PvEGamePage() {
 
         {/* Actions */}
         <Card className="flow-card">
-          <CardHeader>
-            <CardTitle className="text-white">Actions</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-white">Actions</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Winner can claim winnings */}
-            {isGameEnded && isWinner && pot > BigInt(0) && (
-              <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-lg p-6 text-center">
-                <div className="flex items-center justify-center space-x-3 mb-4">
-                  <Gift className="w-8 h-8 text-yellow-400" />
-                  <h3 className="text-xl font-bold text-yellow-400">Claim Your Winnings!</h3>
-                </div>
-                <p className="text-gray-300 mb-4">
-                  You won {formatEther(pot)} FLOW! The winnings will be automatically transferred to your wallet.
-                </p>
-                <div className="flex items-center justify-center space-x-2 text-green-400">
-                  <CheckCircle className="w-5 h-5" />
-                  <span>Winnings will be claimed automatically</span>
-                </div>
-              </div>
-            )}
-
-            {/* Reset game option */}
-            {isGameEnded && canReset && (
-              <Button
-                onClick={handleResetGame}
-                disabled={isProcessing}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Resetting Game...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-5 h-5 mr-2" />
-                    Challenge Dealer Again
-                  </>
-                )}
-              </Button>
-            )}
-
-            {/* Game ended but can't reset yet */}
-            {isGameEnded && !canReset && gameEndedTimestamp > 0 && (
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
-                <div className="flex items-center justify-center space-x-2 text-blue-400 mb-2">
-                  <Clock className="w-5 h-5" />
-                  <span>Game Reset Available Soon</span>
-                </div>
-                <p className="text-gray-400 text-sm">
-                  New game can be started 5 minutes after game completion
-                </p>
-              </div>
-            )}
-
+            {error && <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{error}</div>}
+            
+            {/* Join Game Button */}
             {canJoin && (
-              <Button
-                onClick={handleJoinGame}
-                disabled={isProcessing}
-                className="w-full flow-button text-lg py-6"
-              >
+              <Button onClick={handleJoinGame} disabled={isProcessing} className="w-full flow-button text-lg py-6">
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Starting Game...
+                    Joining Game...
                   </>
                 ) : (
                   <>
@@ -753,87 +759,145 @@ export default function PvEGamePage() {
               </Button>
             )}
 
-            {canBet && (
-              <div className="space-y-3">
-                <div className="flex space-x-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Bet amount (FLOW)"
-                    value={betAmount}
-                    onChange={(e) => setBetAmount(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                  <Button
-                    onClick={handlePlaceBet}
-                    disabled={!betAmount || isProcessing}
-                    className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white min-w-[100px]"
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Coins className="w-4 h-4 mr-2" />
-                        Bet
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={handleCall}
-                    disabled={isProcessing}
-                    variant="outline"
-                    className="flex-1 border-blue-500 text-blue-400 hover:bg-blue-500/20"
-                  >
-                    {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Call
-                  </Button>
-                  <Button
-                    onClick={handleFold}
-                    disabled={isProcessing}
-                    variant="outline"
-                    className="flex-1 border-red-500 text-red-400 hover:bg-red-500/20"
-                  >
-                    {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Fold
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {canRoll && (
-              <Button
-                onClick={handleRollDice}
-                disabled={isProcessing}
-                className="w-full flow-button text-lg py-6 group"
-              >
+            {/* Reset Game */}
+            {isGameEnded && canReset && (
+              <Button onClick={handleResetGame} disabled={isProcessing} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6">
                 {isProcessing ? (
                   <>
-                    <div className="dice-loader mr-3" />
-                    Rolling with VRF...
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Resetting...
                   </>
                 ) : (
                   <>
-                    <Dice1 className="w-5 h-5 mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                    Roll Dice with Flow VRF
-                    <Shield className="w-5 h-5 ml-2 text-green-300" />
+                    <RefreshCw className="w-5 h-5 mr-2" />
+                    Challenge Dealer Again
                   </>
                 )}
               </Button>
             )}
+            
+            {/* User Turn Actions */}
+            {isMyTurn && !isGameEnded && (
+              <>
+                {canBet && (
+                  <div className="space-y-3">
+                    <div className="flex space-x-2">
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="Bet amount (FLOW)" 
+                        value={betAmount} 
+                        onChange={(e) => setBetAmount(e.target.value)} 
+                        className="bg-gray-800 border-gray-700 text-white" 
+                      />
+                      <Button 
+                        onClick={handlePlaceBet} 
+                        disabled={!betAmount || isProcessing} 
+                        className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white min-w-[100px]"
+                      >
+                        {isProcessing ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Coins className="w-4 h-4 mr-2" />
+                            Bet
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={handleCall} 
+                        disabled={isProcessing} 
+                        variant="outline" 
+                        className="flex-1 border-blue-500 text-blue-400 hover:bg-blue-500/20"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        Call
+                      </Button>
+                      <Button 
+                        onClick={handleFold} 
+                        disabled={isProcessing} 
+                        variant="outline" 
+                        className="flex-1 border-red-500 text-red-400 hover:bg-red-500/20"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        Fold
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {canRoll && (
+                  <Button 
+                    onClick={handleRollDice} 
+                    disabled={isProcessing} 
+                    className="w-full flow-button text-lg py-6 group"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="dice-loader mr-3" />
+                        Rolling with VRF...
+                      </>
+                    ) : (
+                      <>
+                        <Dice1 className="w-5 h-5 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                        Roll Dice with Flow VRF
+                        <Shield className="w-5 h-5 ml-2 text-green-300" />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </>
+            )}
 
-            {!isMyTurn && myPlayerIndex !== -1 && gameState > 0 && gameState < 27 && !isGameEnded && (
+            {/* AI Thinking Indicator */}
+            {aiThinking && (
               <div className="text-center py-8">
                 <div className="inline-flex items-center space-x-3">
-                  <Bot className="w-6 h-6 text-green-400 pulse-icon" />
-                  <span className="text-gray-400">Dealer is thinking...</span>
+                  <span className="text-gray-400">{aiStatus}</span>
                   <DominoLoader />
+                </div>
+              </div>
+            )}
+
+            {/* Waiting for Game State */}
+            {gameState === 0 && players[0] === ZERO_ADDRESS && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center space-x-3">
+                  <span className="text-gray-400">The dealer is waiting for a challenger...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Game Status Messages */}
+            {gameState === 0 && myPlayerIndex === 0 && players[1] === ZERO_ADDRESS && !aiJoinAttempted && (
+              <div className="text-center py-4">
+                <div className="inline-flex items-center space-x-3">
+                  <Bot className="w-5 h-5 text-green-400 pulse-icon" />
+                  <span className="text-gray-400">Waiting for dealer to join...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Not your turn indicator */}
+            {!isMyTurn && myPlayerIndex !== -1 && gameState > 0 && gameState < 27 && !isGameEnded && !aiThinking && (
+              <div className="text-center py-6">
+                <div className="inline-flex items-center space-x-3">
+                  <Bot className="w-6 h-6 text-green-400 pulse-icon" />
+                  <span className="text-gray-400">Dealer is making their move...</span>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Interactive Chat Component */}
+        <InteractiveChat 
+          history={chatHistory} 
+          onSendMessage={handleSendChatMessage}
+          isProcessing={aiThinking || isProcessing}
+        />
+
       </div>
     </div>
   )
