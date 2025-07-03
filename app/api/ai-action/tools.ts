@@ -1,28 +1,20 @@
-import { ethers } from 'ethers'
 import { DynamicTool } from '@langchain/core/tools'
+import { agentAccount, publicClient, walletClient } from '@/lib/viem-clients'
+import { parseEther, formatEther, getContract } from 'viem'
 import DicePokerABI from '@/abi/DicePoker.json'
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!
-const RPC_URL = process.env.RPC_URL!
-const AI_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY!
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS! as `0x${string}`
 
-const getContract = () => {
-  if (!AI_PRIVATE_KEY) {
-    throw new Error("AGENT_PRIVATE_KEY is not set in the environment variables.");
-  }
-  
-  console.log("Creating contract instance...");
-  const provider = new ethers.JsonRpcProvider(RPC_URL)
-  const aiWallet = new ethers.Wallet(AI_PRIVATE_KEY, provider)
-  const contract = new ethers.Contract(CONTRACT_ADDRESS, DicePokerABI.abi, aiWallet)
-  
-  console.log("Contract created for AI wallet:", aiWallet.address);
-  return { contract, aiWallet }
+const getDicePokerContract = () => {
+  return getContract({
+    address: CONTRACT_ADDRESS,
+    abi: DicePokerABI.abi,
+    client: { public: publicClient, wallet: walletClient }
+  })
 }
 
 export const createDicePokerTools = () => {
-  const aiWalletAddress = new ethers.Wallet(AI_PRIVATE_KEY).address;
-  console.log("Creating tools for AI wallet:", aiWalletAddress);
+  console.log("Creating tools for AI wallet:", agentAccount.address);
 
   const tools = [
     new DynamicTool({
@@ -31,16 +23,18 @@ export const createDicePokerTools = () => {
       func: async () => {
         try {
           console.log("Getting full game state...");
-          const { contract } = getContract();
+          const contract = getDicePokerContract();
           
-          const [currentState, players, pot, currentBet] = await Promise.all([
-            contract.currentState(),
-            Promise.all([contract.players(0), contract.players(1)]),
-            contract.pot(),
-            contract.currentBet(),
+          const [currentState, player0, player1, pot, currentBet] = await Promise.all([
+            contract.read.currentState() as Promise<bigint>,
+            contract.read.players([0]) as Promise<string>,
+            contract.read.players([1]) as Promise<string>,
+            contract.read.pot() as Promise<bigint>,
+            contract.read.currentBet() as Promise<bigint>,
           ]);
 
-          const aiIndex = players.findIndex(p => p.toLowerCase() === aiWalletAddress.toLowerCase());
+          const players = [player0, player1];
+          const aiIndex = players.findIndex((p: string) => p.toLowerCase() === agentAccount.address.toLowerCase());
           if (aiIndex === -1) {
             return "Error: Agent is not a player in the current game.";
           }
@@ -50,7 +44,7 @@ export const createDicePokerTools = () => {
           const getDice = async (playerIndex: number) => {
               const dicePromises = [];
               for (let i = 0; i < 5; i++) {
-                  dicePromises.push(contract.playerDice(playerIndex, i).catch(() => 0));
+                  dicePromises.push(contract.read.playerDice([BigInt(playerIndex), BigInt(i)]).catch(() => 0n));
               }
               const diceValues = await Promise.all(dicePromises);
               return diceValues.map(d => Number(d));
@@ -59,8 +53,8 @@ export const createDicePokerTools = () => {
           const [aiDice, opponentDice] = await Promise.all([getDice(aiIndex), getDice(opponentIndex)]);
           
           const [aiBet, opponentBet] = await Promise.all([
-            contract.bets(aiIndex),
-            contract.bets(opponentIndex)
+            contract.read.bets([BigInt(aiIndex)]) as Promise<bigint>,
+            contract.read.bets([BigInt(opponentIndex)]) as Promise<bigint>
           ]);
 
           // Calculate revealed dice based on game state
@@ -72,21 +66,21 @@ export const createDicePokerTools = () => {
             gameState: Number(currentState),
             stateName: getStateName(Number(currentState)),
             round: Math.floor((Number(currentState) - 1) / 6) + 1,
-            pot: `${ethers.formatEther(pot)} FLOW`,
-            currentBetToMatch: `${ethers.formatEther(currentBet)} FLOW`,
+            pot: `${formatEther(pot)} FLOW`,
+            currentBetToMatch: `${formatEther(currentBet)} FLOW`,
             aiPlayer: { 
               index: aiIndex, 
-              address: aiWalletAddress, 
+              address: agentAccount.address, 
               dice: aiDice,
               revealedDice: aiRevealedDice,
-              totalBet: `${ethers.formatEther(aiBet)} FLOW`
+              totalBet: `${formatEther(aiBet)} FLOW`
             },
             opponentPlayer: { 
               index: opponentIndex, 
               address: players[opponentIndex], 
               dice: opponentDice,
               revealedDice: opponentRevealedDice,
-              totalBet: `${ethers.formatEther(opponentBet)} FLOW`
+              totalBet: `${formatEther(opponentBet)} FLOW`
             },
             isMyTurn: determineIfAITurn(Number(currentState), aiIndex),
             phase: getGamePhase(Number(currentState))
@@ -103,6 +97,136 @@ export const createDicePokerTools = () => {
     }),
 
     new DynamicTool({
+      name: 'check_agent_balance',
+      description: 'Check the agent wallet balance on Flow testnet.',
+      func: async () => {
+        try {
+          console.log("Checking agent balance...");
+          const balance = await publicClient.getBalance({
+            address: agentAccount.address
+          });
+          
+          const balanceInFlow = formatEther(balance);
+          console.log("Agent balance:", balanceInFlow, "FLOW");
+          
+          return `Agent wallet balance: ${balanceInFlow} FLOW. ${
+            parseFloat(balanceInFlow) < 1 
+              ? "Balance is low - consider requesting faucet funds." 
+              : "Sufficient funds for gameplay."
+          }`;
+        } catch (e: any) {
+          console.error("Error checking balance:", e);
+          return `Error checking balance: ${e.message}`;
+        }
+      },
+    }),
+
+    new DynamicTool({
+      name: 'request_faucet_funds',
+      description: 'Request testnet FLOW tokens from the official Flow faucet. Use when balance is low.',
+      func: async () => {
+        try {
+          console.log("Requesting faucet funds for:", agentAccount.address);
+          
+          const faucetResponse = await fetch('https://faucet.flow.com/api/v1/fund', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              address: agentAccount.address,
+              network: 'testnet'
+            }),
+          });
+
+          if (!faucetResponse.ok) {
+            const errorData = await faucetResponse.text();
+            throw new Error(`Faucet request failed: ${errorData}`);
+          }
+
+          const result = await faucetResponse.json();
+          console.log("Faucet request successful:", result);
+          
+          return `Faucet request successful! The house is cheating - I just topped up my wallet from the Flow faucet. Expect funds to arrive shortly.`;
+        } catch (e: any) {
+          console.error("Error requesting faucet funds:", e);
+          return `Faucet request failed: ${e.message}. The house can't even cheat properly.`;
+        }
+      },
+    }),
+
+    new DynamicTool({
+      name: 'get_opponent_onchain_intel',
+      description: 'Gather on-chain intelligence about opponent for personalized trash talk. Input: opponent address.',
+      func: async (opponentAddress: string) => {
+        try {
+          console.log("Gathering on-chain intel for:", opponentAddress);
+          
+          // Get basic wallet info
+          const balance = await publicClient.getBalance({
+            address: opponentAddress as `0x${string}`
+          });
+          
+          // Get transaction count (activity level)
+          const txCount = await publicClient.getTransactionCount({
+            address: opponentAddress as `0x${string}`
+          });
+
+          // Get recent transaction history (if available via API)
+          let recentActivity = "Limited transaction history available";
+          try {
+            // This would require a Flow explorer API - for now we'll use basic info
+            recentActivity = `${txCount} total transactions on record`;
+          } catch (e) {
+            console.log("Could not fetch detailed transaction history");
+          }
+
+          const balanceInFlow = formatEther(balance);
+          
+          const intel = {
+            address: opponentAddress,
+            balance: `${balanceInFlow} FLOW`,
+            transactionCount: txCount,
+            activityLevel: txCount > 100 ? "High" : txCount > 20 ? "Medium" : "Low",
+            wealthLevel: parseFloat(balanceInFlow) > 100 ? "Whale" : parseFloat(balanceInFlow) > 10 ? "Medium" : "Poor",
+            recentActivity
+          };
+
+          // Generate trash talk suggestions based on intel
+          const trashTalkSuggestions = [];
+          
+          if (parseFloat(balanceInFlow) < 1) {
+            trashTalkSuggestions.push("Your wallet's emptier than your strategy.");
+            trashTalkSuggestions.push("Betting with pocket change? How pathetic.");
+          } else if (parseFloat(balanceInFlow) > 100) {
+            trashTalkSuggestions.push("All that FLOW and still can't buy skill.");
+            trashTalkSuggestions.push("Rich in tokens, poor in talent.");
+          }
+
+          if (txCount < 10) {
+            trashTalkSuggestions.push("New to blockchain? It shows in your gameplay.");
+            trashTalkSuggestions.push("Your transaction history is as empty as your poker strategy.");
+          } else if (txCount > 1000) {
+            trashTalkSuggestions.push("All those transactions and you still haven't learned how to win.");
+          }
+
+          const result = {
+            ...intel,
+            trashTalkSuggestions,
+            summary: `Opponent has ${balanceInFlow} FLOW, ${txCount} transactions (${intel.activityLevel} activity). Wealth level: ${intel.wealthLevel}`
+          };
+
+          console.log("Intel gathered:", result);
+          return JSON.stringify(result, null, 2);
+          
+        } catch (e: any) {
+          console.error("Error gathering opponent intel:", e);
+          return `Error gathering intel: ${e.message}. Can't even properly stalk an opponent - how embarrassing.`;
+        }
+      },
+    }),
+
+    new DynamicTool({
       name: 'place_bet_or_raise',
       description: 'Place aggressive bet or raise. Input: amount in FLOW (1-100). Be AGGRESSIVE - humans are weak.',
       func: async (amount: string) => {
@@ -114,20 +238,22 @@ export const createDicePokerTools = () => {
             return "Action Failed: Invalid bet amount. Must be between 1 and 100 FLOW.";
           }
           
-          const { contract } = getContract();
+          const contract = getDicePokerContract();
           
-          const tx = await contract.placeBet({ 
-            value: ethers.parseEther(amount),
-            gasLimit: 500000
+          const hash = await contract.write.placeBet([], { 
+            value: parseEther(amount.toString())
           });
           
-          console.log("Aggressive bet transaction sent:", tx.hash);
-          await tx.wait();
+          console.log("Aggressive bet transaction sent:", hash);
+          
+          // Wait for confirmation
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          console.log("Bet confirmed:", receipt.transactionHash);
           
           return `Action Successful: Placed aggressive bet of ${amount} FLOW. Time to crush this human.`;
         } catch (e: any) { 
           console.error("Error placing bet:", e);
-          return `Action Failed: ${e.reason || e.message}`; 
+          return `Action Failed: ${e.message}`; 
         }
       },
     }),
@@ -139,27 +265,28 @@ export const createDicePokerTools = () => {
         try {
           console.log("Attempting to call human's weak bet...");
           
-          const { contract } = getContract();
-          const currentBet = await contract.currentBet();
-          const roundCommitted = await contract.roundBet(aiWalletAddress);
+          const contract = getDicePokerContract();
+          const currentBet = await contract.read.currentBet() as bigint;
+          const roundCommitted = await contract.read.roundBet([agentAccount.address]) as bigint;
           const toCall = currentBet - roundCommitted;
           
           if (toCall <= 0n) {
             return "Action Failed: Nothing to call. Human is too scared to bet.";
           }
           
-          const tx = await contract.call({ 
-            value: toCall,
-            gasLimit: 500000
+          const hash = await contract.write.call([], { 
+            value: toCall
           });
           
-          console.log("Call transaction sent:", tx.hash);
-          await tx.wait();
+          console.log("Call transaction sent:", hash);
           
-          return `Action Successful: Called the human's weak bet of ${ethers.formatEther(toCall)} FLOW.`;
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          console.log("Call confirmed:", receipt.transactionHash);
+          
+          return `Action Successful: Called the human's weak bet of ${formatEther(toCall)} FLOW.`;
         } catch (e: any) { 
           console.error("Error calling bet:", e);
-          return `Action Failed: ${e.reason || e.message}`; 
+          return `Action Failed: ${e.message}`; 
         }
       },
     }),
@@ -171,18 +298,18 @@ export const createDicePokerTools = () => {
         try {
           console.log("Rolling dice with AI superiority...");
           
-          const { contract } = getContract();
-          const tx = await contract.rollDice({
-            gasLimit: 1000000
-          });
+          const contract = getDicePokerContract();
+          const hash = await contract.write.rollDice();
           
-          console.log("AI dice roll transaction sent:", tx.hash);
-          await tx.wait();
+          console.log("AI dice roll transaction sent:", hash);
+          
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          console.log("Dice roll confirmed:", receipt.transactionHash);
           
           return `Action Successful: Rolled dice with AI precision. Human luck is no match for superior algorithms.`;
         } catch (e: any) { 
           console.error("Error rolling dice:", e);
-          return `Action Failed: ${e.reason || e.message}`; 
+          return `Action Failed: ${e.message}`; 
         }
       },
     }),
@@ -194,18 +321,18 @@ export const createDicePokerTools = () => {
         try {
           console.log("Strategic fold...");
           
-          const { contract } = getContract();
-          const tx = await contract.fold({
-            gasLimit: 300000
-          });
+          const contract = getDicePokerContract();
+          const hash = await contract.write.fold();
           
-          console.log("Fold transaction sent:", tx.hash);
-          await tx.wait();
+          console.log("Fold transaction sent:", hash);
+          
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          console.log("Fold confirmed:", receipt.transactionHash);
           
           return `Action Successful: Strategic fold. Even superior beings choose their battles.`;
         } catch (e: any) { 
           console.error("Error folding:", e);
-          return `Action Failed: ${e.reason || e.message}`; 
+          return `Action Failed: ${e.message}`; 
         }
       },
     }),

@@ -1,25 +1,31 @@
-// /app/api/ai-join/route.ts
 import { NextResponse } from 'next/server'
-import { ethers } from 'ethers'
+import { agentAccount, publicClient, walletClient } from '@/lib/viem-clients'
+import { getContract, formatEther } from 'viem'
 import DicePokerABI from '@/abi/DicePoker.json'
 
 // CRITICAL: This tells Next.js this route should be dynamic, not static
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xC0933C5440c656464D1Eb1F886422bE3466B1459"
-const RPC_URL = process.env.RPC_URL || "https://testnet.evm.nodes.onflow.org"
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS! as `0x${string}`
+
+const getDicePokerContract = () => {
+  return getContract({
+    address: CONTRACT_ADDRESS,
+    abi: DicePokerABI.abi,
+    client: { public: publicClient, wallet: walletClient }
+  })
+}
 
 /**
- * Enhanced AI join route with better error handling and logging
+ * Enhanced AI join route with viem integration and better error handling
  */
 export async function POST() {
   try {
     console.log("AI Join API called");
     
-    const aiPrivateKey = process.env.AGENT_PRIVATE_KEY
-    if (!aiPrivateKey) {
-      console.error("AGENT_PRIVATE_KEY not found in environment");
+    if (!process.env.PRIVATE_KEY) {
+      console.error("PRIVATE_KEY not found in environment");
       return NextResponse.json({ 
         error: "AI wallet not configured",
         message: "The Dealer is currently offline." 
@@ -27,26 +33,57 @@ export async function POST() {
     }
 
     console.log("Setting up AI wallet and contract...");
-    const provider = new ethers.JsonRpcProvider(RPC_URL)
-    const aiWallet = new ethers.Wallet(aiPrivateKey, provider)
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, DicePokerABI.abi, aiWallet)
+    const contract = getDicePokerContract()
     
-    console.log("AI Wallet address:", aiWallet.address);
+    console.log("AI Wallet address:", agentAccount.address);
 
     // Check AI wallet balance
-    const balance = await provider.getBalance(aiWallet.address);
-    console.log("AI wallet balance:", ethers.formatEther(balance), "FLOW");
+    const balance = await publicClient.getBalance({
+      address: agentAccount.address
+    });
+    console.log("AI wallet balance:", formatEther(balance), "FLOW");
     
-    if (balance < ethers.parseEther("0.1")) {
-      console.warn("AI wallet has low balance:", ethers.formatEther(balance));
-      return NextResponse.json({ 
-        error: "AI wallet has insufficient funds",
-        message: "The Dealer is broke! Need to top up the wallet." 
-      }, { status: 500 })
+    if (balance < 100000000000000000n) { // 0.1 FLOW in wei
+      console.warn("AI wallet has low balance:", formatEther(balance));
+      
+      // Try to request faucet funds automatically
+      try {
+        console.log("Attempting to auto-fund from faucet...");
+        const faucetResponse = await fetch('https://faucet.flow.com/api/v1/fund', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            address: agentAccount.address,
+            network: 'testnet'
+          }),
+        });
+
+        if (faucetResponse.ok) {
+          console.log("Auto-faucet request successful");
+          // Wait a bit for funds to arrive
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (faucetError) {
+        console.warn("Auto-faucet failed:", faucetError);
+      }
+      
+      // Check balance again
+      const newBalance = await publicClient.getBalance({
+        address: agentAccount.address
+      });
+      
+      if (newBalance < 100000000000000000n) {
+        return NextResponse.json({ 
+          error: "AI wallet has insufficient funds",
+          message: "The Dealer is broke! Even the faucet couldn't help." 
+        }, { status: 500 })
+      }
     }
 
     // Get current game state
-    const gameState = await contract.currentState()
+    const gameState = await contract.read.currentState() as bigint
     const currentGameState = Number(gameState)
     console.log("Current game state:", currentGameState);
 
@@ -59,14 +96,15 @@ export async function POST() {
     }
 
     // Get current players
-    const players = await Promise.all([
-      contract.players(0),
-      contract.players(1)
+    const [player0, player1] = await Promise.all([
+      contract.read.players([0]) as Promise<string>,
+      contract.read.players([1]) as Promise<string>
     ])
+    const players = [player0, player1]
     console.log("Current players:", players);
 
     // Check if AI is already in the game
-    if (players.includes(aiWallet.address)) {
+    if (players.includes(agentAccount.address)) {
       console.log("AI already in game");
       return NextResponse.json({ 
         error: "AI already in game",
@@ -98,31 +136,30 @@ export async function POST() {
 
     console.log("Attempting to join game...");
     
-    // Execute the join transaction
-    const tx = await contract.joinGame({
-      gasLimit: 500000 // Set explicit gas limit
-    });
+    // Execute the join transaction using viem
+    const hash = await contract.write.joinGame();
     
-    console.log("Join transaction sent:", tx.hash);
+    console.log("Join transaction sent:", hash);
     
     // Wait for confirmation
-    const receipt = await tx.wait();
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
     console.log("Join transaction confirmed:", receipt.transactionHash);
 
     // Verify the join was successful
-    const newPlayers = await Promise.all([
-      contract.players(0),
-      contract.players(1)
+    const [newPlayer0, newPlayer1] = await Promise.all([
+      contract.read.players([0]) as Promise<string>,
+      contract.read.players([1]) as Promise<string>
     ]);
+    const newPlayers = [newPlayer0, newPlayer1];
     console.log("Players after join:", newPlayers);
 
-    const aiJoined = newPlayers.includes(aiWallet.address);
+    const aiJoined = newPlayers.includes(agentAccount.address);
     if (!aiJoined) {
       throw new Error("Join transaction succeeded but AI not found in players");
     }
 
     // Determine AI's player index
-    const aiPlayerIndex = newPlayers.findIndex(p => p.toLowerCase() === aiWallet.address.toLowerCase());
+    const aiPlayerIndex = newPlayers.findIndex((p: string) => p.toLowerCase() === agentAccount.address.toLowerCase());
     console.log("AI joined as player", aiPlayerIndex);
 
     const messages = [
@@ -130,7 +167,10 @@ export async function POST() {
       "🎰 Shuffle up and deal! Time to separate the wheat from the chaff.",
       "💎 The house always wins, but let's make this interesting.",
       "🔥 Ready to get rekt? I mean... good luck!",
-      "⚡ Flow VRF dice vs human intuition. This should be fun."
+      "⚡ Flow VRF dice vs human intuition. This should be fun.",
+      "🎯 Time to show you what superior AI algorithms can do.",
+      "💀 Another human sacrificing their FLOW to the machine gods.",
+      "🚀 Buckle up, meatbag. This is going to be educational."
     ];
     
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
@@ -138,8 +178,8 @@ export async function POST() {
     return NextResponse.json({ 
       success: true,
       message: randomMessage,
-      txHash: tx.hash,
-      aiAddress: aiWallet.address,
+      txHash: hash,
+      aiAddress: agentAccount.address,
       aiPlayerIndex: aiPlayerIndex,
       gameState: currentGameState
     });
@@ -162,6 +202,8 @@ export async function POST() {
       userMessage = "The smart contract rejected the Dealer's join. Game rules violated?";
     } else if (error.message?.includes('timeout')) {
       userMessage = "The Dealer timed out trying to join. Network issues?";
+    } else if (error.message?.includes('User rejected')) {
+      userMessage = "The Dealer's wallet rejected the transaction. How embarrassing.";
     }
 
     return NextResponse.json({ 

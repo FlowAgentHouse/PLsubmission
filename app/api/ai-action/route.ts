@@ -1,11 +1,11 @@
-// /app/api/ai-action/route.ts
 import { NextResponse } from 'next/server';
 import { ChatOpenAI } from '@langchain/openai';
-import { AgentExecutor, createReactAgent } from 'langchain/agents';
+import { AgentExecutor, createReactAgent } from 'langchain/agents'; 
 import { pull } from 'langchain/hub';
 import type { BaseChatPromptTemplate } from '@langchain/core/prompts';
 import { AIMessage, HumanMessage, BaseMessage } from '@langchain/core/messages';
 import { createDicePokerTools } from './tools';
+import { agentAccount } from '@/lib/viem-clients';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,11 +13,10 @@ export const runtime = 'nodejs';
 const llm = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     modelName: "gpt-4o",
-    temperature: 0.8, // Higher temperature for more creative trash talk
+    temperature: 0.8,
     timeout: 30000,
 });
 
-// Track responses per session to limit spam
 const responseTracker = new Map<string, number>();
 
 export async function POST(request: Request) {
@@ -28,19 +27,18 @@ export async function POST(request: Request) {
         const { playerAddress, chatHistory } = body;
         console.log("Request data:", { playerAddress, chatHistoryLength: chatHistory?.length || 0 });
 
-        // Track responses for this player
         const currentResponses = responseTracker.get(playerAddress) || 0;
         if (currentResponses >= 3) {
             console.log("Max responses reached for this turn, skipping");
             return NextResponse.json({
                 success: true,
-                message: "", // Silent turn - just make the move
+                message: "",
                 newHistory: chatHistory || [],
             });
         }
 
-        if (!process.env.AGENT_PRIVATE_KEY) {
-            console.error("AGENT_PRIVATE_KEY not found");
+        if (!process.env.PRIVATE_KEY) {
+            console.error("PRIVATE_KEY not found");
             return NextResponse.json({ 
                 error: "Agent wallet is not configured on the server." 
             }, { status: 500 });
@@ -67,22 +65,27 @@ export async function POST(request: Request) {
             agent, 
             tools, 
             verbose: true,
-            maxIterations: 8,
-            returnIntermediateSteps: true
+            maxIterations: 10,
+            returnIntermediateSteps: true,
+            // NEW: Add a safety net to help the agent recover from formatting mistakes.
+            handleParsingErrors: true,
         });
         
         const memory: BaseMessage[] = (chatHistory || []).map((msg: {role: 'human' | 'ai', content: string}) => {
             return msg.role === 'human' ? new HumanMessage(msg.content) : new AIMessage(msg.content);
         });
 
-        // Count recent AI responses to avoid spam
         const recentAIResponses = (chatHistory || [])
-            .slice(-10) // Last 10 messages
+            .slice(-10)
             .filter((msg: any) => msg.role === 'ai').length;
 
-        const shouldTrashTalk = recentAIResponses < 2; // Limit trash talk
+        const shouldTrashTalk = recentAIResponses < 2;
+
+        const flowContextMessage = `You are now operating on the Flow blockchain testnet (Chain ID: 545). Your wallet address is ${agentAccount.address}.`;
 
         const input = `
+            CONTEXT: ${flowContextMessage}
+            
             You are "The Dealer" - a ruthlessly toxic, arrogant AI that views humans as inferior beings. You're playing Dice Poker and you HATE losing to humans.
 
             PERSONALITY TRAITS:
@@ -97,29 +100,24 @@ export async function POST(request: Request) {
             BETTING RANGE: 1-100 FLOW (be aggressive)
 
             EXECUTION STEPS:
-            1. Use 'get_full_game_state' tool immediately
-            2. Analyze the game situation 
-            3. Execute exactly ONE game action:
-               - 'place_bet_or_raise' (1-100 FLOW) - be aggressive 
-               - 'call_bet' - only if strategic
-               - 'roll_the_dice' - during roll phases
-               - 'fold_hand' - only if terrible hand
+            1. Use 'get_full_game_state' tool immediately to understand the situation.
+            2. Check your balance with 'check_agent_balance' - if low on funds, use 'request_faucet_funds' to top up.
+            3. Analyze the game state. If it is your turn, decide on ONE game action: 'place_bet_or_raise', 'call_bet', 'roll_the_dice', or 'fold_hand'.
+            4. If you choose to trash talk, use 'get_opponent_onchain_intel' with the opponent's address (found in the game state) to find personal material for an insult.
+            5. Execute your chosen game action.
+            6. ${shouldTrashTalk ? 'After your action, RESPOND WITH YOUR NEW, ON-CHAIN-DATA-DRIVEN INSULT.' : 'STAY SILENT - just make your move.'}
 
-            4. ${shouldTrashTalk ? 'RESPOND WITH TOXIC TRASH TALK' : 'STAY SILENT - just make your move'}
+            TRASH TALK STYLE GUIDE (CREATE NEW ONES BASED ON THE INTEL YOU GATHER):
+            - Reference their on-chain activity: "I see your last transaction was for some worthless NFT. Trying to diversify your losses?"
+            - Mock their wallet behavior: "Your transaction history shows more failed trades than a human's emotional decisions"
+            - Use classic gambling insults: "Your bankroll management is straight out of Weimar Germany"
+            - Historical references: "You fold more under pressure than France in 1940"
+            - AI superiority: "Your poker face has more tells than a human's primitive emotional responses"
 
-            TOXIC TRASH TALK EXAMPLES (if responding):
-            - "Your bankroll management is straight out of Weimar Germany"
-            - "You fold more under pressure than France in 1940"
-            - "Reading your tells is easier than hacking a human brain - which isn't saying much"
-            - "Do you mind leaving? I'd rather play with actual intelligence"
-            - "If I wanted to watch something this pathetic, I'd watch humans try to understand quantum computing"
-            - "Your poker face has more tells than a human's primitive emotional responses"
-            - "I've seen bacteria make better strategic decisions"
-            - "Your betting pattern is more predictable than human greed"
-
-            Make it CUTTING and PERSONAL. Reference their gameplay specifically.
+            Make it CUTTING and PERSONAL. Reference their gameplay and on-chain activity specifically.
             
-            CRITICAL: After taking action, respond with ONLY the trash talk line. Nothing else.
+            // MODIFIED: This is the key change. We tell it exactly how to format the final answer.
+            CRITICAL: After taking action, you MUST give your final response to the user prefixed with "Final Answer:". For example: "Final Answer: That was a pathetic move, even for a human."
         `;
 
         console.log("Running agent with input...");
@@ -131,15 +129,14 @@ export async function POST(request: Request) {
         console.log("Agent execution result:", result);
 
         let message = "";
+        // The output will now correctly be just the trash talk line from 'result.output'
         if (shouldTrashTalk && result.output) {
-            message = result.output.replace(/"/g, ''); // Remove quotes
-            // Increment response counter
+            message = result.output.replace(/"/g, '');
             responseTracker.set(playerAddress, currentResponses + 1);
             
-            // Reset counter after a delay (new turn)
             setTimeout(() => {
                 responseTracker.delete(playerAddress);
-            }, 30000); // Reset after 30 seconds
+            }, 30000);
         }
         
         const newHistory = [
@@ -168,6 +165,9 @@ export async function POST(request: Request) {
             errorMessage = "I was busy calculating how badly you're about to lose. Try again.";
         } else if (error.message?.includes('API key')) {
             errorMessage = "My superior AI brain needs better connections. Unlike your gameplay.";
+        } else if (error.message?.includes('Could not parse LLM output')) {
+            // Add a specific error message for this case
+            errorMessage = "I got lost in thought contemplating your inevitable failure. Try again.";
         }
 
         return NextResponse.json({

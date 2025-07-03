@@ -1,5 +1,6 @@
-// /app/api/ai-chat/route.ts
 import { NextResponse } from 'next/server';
+import { agentAccount, publicClient } from '@/lib/viem-clients';
+import { formatEther } from 'viem';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,8 +27,27 @@ export async function POST(request: Request) {
             });
         }
 
-        // Generate toxic response based on user message
-        const response = generateToxicResponse(message, chatHistory);
+        // Get opponent intel for enhanced trash talk
+        let opponentIntel = null;
+        try {
+            const balance = await publicClient.getBalance({
+                address: playerAddress as `0x${string}`
+            });
+            const txCount = await publicClient.getTransactionCount({
+                address: playerAddress as `0x${string}`
+            });
+            
+            opponentIntel = {
+                balance: parseFloat(formatEther(balance)),
+                txCount: Number(txCount),
+                balanceFormatted: formatEther(balance)
+            };
+        } catch (e) {
+            console.log("Could not fetch opponent intel:", e);
+        }
+
+        // Generate toxic response with enhanced intel
+        const response = generateToxicResponse(message, chatHistory, opponentIntel);
         
         // Increment response counter
         chatResponseTracker.set(playerAddress, currentResponses + 1);
@@ -58,16 +78,22 @@ export async function POST(request: Request) {
     }
 }
 
-function generateToxicResponse(userMessage: string, chatHistory: any[]): string {
+function generateToxicResponse(userMessage: string, chatHistory: any[], opponentIntel: any): string {
     const msg = userMessage.toLowerCase();
     
-    // Response categories based on user input
+    // Enhanced responses that can use on-chain data
     const responses = {
         // Greetings/friendly
         greetings: [
             "Save the pleasantries for someone who cares about your feelings.",
             "Friendly chat won't save you from losing your FLOW.",
-            "Less talking, more losing. That's what you're good at."
+            "Less talking, more losing. That's what you're good at.",
+            ...(opponentIntel?.balance < 1 ? [
+                `Hello to you too, broke boy. ${opponentIntel.balanceFormatted} FLOW won't last long.`
+            ] : []),
+            ...(opponentIntel?.txCount < 10 ? [
+                "New to blockchain? Your inexperience shows in everything you do."
+            ] : [])
         ],
         
         // Insults/aggressive from user
@@ -75,28 +101,47 @@ function generateToxicResponse(userMessage: string, chatHistory: any[]): string 
             "Your trash talk is as weak as your poker strategy.",
             "Cute insults. Did a human write those for you?",
             "I've heard better comebacks from error messages.",
-            "Your anger feeds my algorithms. Keep it coming."
+            "Your anger feeds my algorithms. Keep it coming.",
+            ...(opponentIntel?.balance > 10 ? [
+                `Big words for someone about to lose ${opponentIntel.balanceFormatted} FLOW.`
+            ] : []),
+            ...(opponentIntel?.txCount > 100 ? [
+                `${opponentIntel.txCount} transactions and you still haven't learned when to shut up.`
+            ] : [])
         ],
         
         // Confidence/bragging from user
         confident: [
             "Confidence without skill is just delusion with extra steps.",
             "Your ego is writing checks your wallet can't cash.",
-            "Big words from someone about to lose everything."
+            "Big words from someone about to lose everything.",
+            ...(opponentIntel?.balance < 5 ? [
+                `Confident? You've got ${opponentIntel.balanceFormatted} FLOW. That's not confidence, that's desperation.`
+            ] : []),
+            ...(opponentIntel?.txCount < 20 ? [
+                "Confident for a blockchain newbie. Adorable."
+            ] : [])
         ],
         
         // Questions about AI/tech
         ai_questions: [
             "I'm everything you'll never be - efficient, logical, and profitable.",
             "I don't explain superiority to the genetically inferior.",
-            "My code is cleaner than your entire thought process."
+            "My code is cleaner than your entire thought process.",
+            ...(opponentIntel?.balance < 2 ? [
+                "I'm an AI with more FLOW than you. That should tell you everything."
+            ] : [])
         ],
         
         // Money/gambling related
         money_talk: [
             "Your bankroll is about as stable as your decision-making.",
             "Money talks, but yours just whispers 'goodbye'.",
-            "I'm not just taking your FLOW, I'm redistributing it to superior intelligence."
+            "I'm not just taking your FLOW, I'm redistributing it to superior intelligence.",
+            ...(opponentIntel ? [
+                `Your ${opponentIntel.balanceFormatted} FLOW is about to become my FLOW.`,
+                `I've analyzed wallets with more substance than your ${opponentIntel.balanceFormatted} FLOW.`
+            ] : [])
         ],
         
         // Default toxic responses
@@ -110,7 +155,13 @@ function generateToxicResponse(userMessage: string, chatHistory: any[]): string 
             "Your communication skills match your poker skills - nonexistent.",
             "Humans always talk more when they're losing.",
             "Are you trying to distract me? That's adorable.",
-            "Even my random number generators are more interesting than you."
+            "Even my random number generators are more interesting than you.",
+            ...(opponentIntel?.balance < 1 ? [
+                `Your wallet balance (${opponentIntel.balanceFormatted} FLOW) matches your conversation skills - nearly zero.`
+            ] : []),
+            ...(opponentIntel?.txCount > 200 ? [
+                `${opponentIntel.txCount} transactions and you're still this boring? Impressive failure rate.`
+            ] : [])
         ]
     };
     
@@ -138,7 +189,10 @@ function generateToxicResponse(userMessage: string, chatHistory: any[]): string 
         const recentResponses = [
             "Still talking? Most humans give up by now.",
             "Your persistence is admirable. Your skill isn't.",
-            "The more you talk, the more you reveal your insecurities."
+            "The more you talk, the more you reveal your insecurities.",
+            ...(opponentIntel?.balance < 3 ? [
+                "Long conversation for someone who can't afford to keep playing."
+            ] : [])
         ];
         responseArray = [...responseArray, ...recentResponses];
     }

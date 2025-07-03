@@ -891,13 +891,13 @@ export default function PvEGamePage() {
           </CardContent>
         </Card>
 
-        {/* Interactive Chat Component */}
+        {/* Interactive Chat Component - TEMP DISABLED SO PEOPLE DONT KILL MY CREDIT USAGE }
         <InteractiveChat 
           history={chatHistory} 
           onSendMessage={handleSendChatMessage}
           isProcessing={aiThinking || isProcessing}
         />
-
+*/}
       </div>
     </div>
   )
