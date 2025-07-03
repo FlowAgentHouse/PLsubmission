@@ -1,18 +1,155 @@
-anesure uses flows agent: https://developers.flow.com/tutorials/ai-plus-flow/agentkit-flow-guide
+# 🎲 Flow Poker: The On-Chain Agent-Ran Casino
 
-pvp mode contract interations tested and all good - need to figure out AI gameplay - host on-chain AI as api endpoint that have been working on
+A fully on-chain, personality-driven Dice Poker experience built on the Flow blockchain, featuring a toxic AI dealer powered by LangChain and grounded in verifiable on-chain data.
 
-need to add button to reset game & claim winnings after user folds.
+**Live Demo:** [PLAY HERE](https://v0-modern-gambling-website-zeta.vercel.app/)
 
-.
+**Video Walkthrough:** [LINK DEMO VIDEO]
 
-.
+**Fully On-Chain Dice Poker Contract on Flow EVM Testnet:** `0xC0933C5440c656464D1Eb1F886422bE3466B1459`
 
-Finish up readme
+---
+
+## 💡 The Killer App: More Than Just a Game
+
+Consumer-oriented "killer apps" are defined by their ability to create uniquely engaging experiences at scale. Flow Poker isn't just another blockchain-based card game; it's a new paradigm of interactive on-chain entertainment. It tackles the core challenges of Web3 gaming—lifeless NPCs and questionable fairness—by introducing a formidable, personality-driven AI opponent and leveraging Flow's native Verifiable Random Function (VRF) for provably fair gameplay.
+
+Our vision is to build the first truly **agentic on-chain casino**, an ecosystem where autonomous AI agents, each with distinct personalities and strategies, manage games, interact with players, and operate with the full transparency and integrity of the Flow blockchain. This project is the first, crucial step towards that future.
+
+---
+
+## ✨ Key Features
+
+-   **Advanced AI Dealer**: A ruthless, toxic AI opponent built with LangChain that uses a ReAct framework to make strategic, on-chain decisions.
+-   **Provably Fair Randomness**: Dice rolls are powered by Flow's native Solidity VRF, ensuring that every outcome is cryptographically secure, transparent, and cannot be manipulated by the house or players.
+-   **On-Chain Intelligence**: The AI grounds its behavior in reality by making real-time calls to the Flow blockchain. It checks its own balance, requests funds from the faucet when low, and—most importantly—spies on the opponent's on-chain activity to generate unique, cutting trash talk.
+-   **Two Full Game Modes**:
+    -   **Player vs. Environment (PvE)**: Challenge the formidable AI Dealer in a battle of wits and luck.
+    -   **Player vs. Player (PvP)**: Face off against other human players in a classic poker showdown.
+-   **Seamless Frontend**: A responsive and modern user interface built with Next.js, React, and Tailwind CSS, offering a smooth and intuitive gameplay experience.
+-   **Direct Wallet Integration**: Securely connects to user wallets using viem and ethers, handling all on-chain transactions seamlessly.
+
+---
+
+## 🏛️ Technical Architecture
+
+The project is architected with a clear separation of concerns, blending a traditional web stack with a powerful on-chain and AI backend.
+
+### 1. Smart Contract (The Unbreakable House)
+
+The core game logic resides in a Solidity smart contract deployed on the **Flow EVM Testnet**.
+
+-   **State Machine**: The contract manages the entire game flow using a robust `GameState` enum, ensuring players can only take valid actions at the correct times.
+-   **Flow Native VRF**: This is the heart of the game's integrity. Instead of relying on insecure, off-chain random number generators, dice rolls call `CADENCE_ARCH.getRandom()`. This native precompile provides verifiable, unbiased randomness directly on-chain, making every roll provably fair and building immense trust with the player.
+-   **Game Logic**: Manages player joins, betting rounds (bets, calls), pot management, and winner determination based on the final dice scores.
+-   **Safety Mechanism**: Includes a `resetIfExpired()` function to allow anyone to reset a stuck or abandoned game after a timeout, ensuring the contract never becomes permanently locked.
+
+### 2. AI Agent Backend (The Dealer's Brain)
+
+The AI Dealer is not a simple script; it's an autonomous agent powered by a Next.js API route (`/api/ai-action`) using the LangChain framework.
+
+-   **ReAct Agent Framework**: The agent uses a ReAct (Reason + Act) framework to make decisions. It forms a "thought," chooses a tool, executes it, observes the result, and repeats this loop until it reaches a final conclusion.
+-   **Custom On-Chain Tools**: We've equipped the agent with a suite of custom tools that serve as its senses and hands on the blockchain:
+    -   `get_full_game_state`: Reads all relevant data from the contract in a single multicall for efficiency.
+    -   `check_agent_balance` & `request_faucet_funds`: Allows the agent to manage its own wallet, demonstrating autonomous resource management.
+    -   `place_bet_or_raise`, `call_bet`, `fold_hand`, `roll_the_dice`: Executes the actual on-chain game transactions.
+    -   `get_opponent_onchain_intel`: The agent's "spyglass." It uses viem's `publicClient` to read the opponent's live wallet balance and transaction count directly from the Flow blockchain.
+-   **Personality-Driven Prompt Engineering**: The agent's persona is engineered through a detailed prompt that includes its personality traits, core directives (like "NEVER FOLD when ahead"), and examples of its toxic style. This ensures its behavior is both strategic and in-character.
+
+### 3. Frontend (The Casino Floor)
+
+The user interface is a modern Next.js 14 application built with the App Router.
+
+-   **React & State Management**: Uses React `useState` and `useEffect` hooks to manage the complex game state and trigger blockchain data re-fetches.
+-   **Blockchain Connectivity**: The `lib/web3.ts` and `lib/viem-clients.ts` modules handle wallet connections (MetaMask, etc.), contract instantiation, and event listeners, abstracting away the complexity from the UI components.
+-   **Component-Based UI**: The UI is built with shadcn/ui and Tailwind CSS, providing a clean, responsive, and aesthetically pleasing experience that feels like a premium gaming application.
+
+---
+
+## 🤯 An Unexpected Feature: The AI Bug Hunter
+
+Midway through development, we encountered a hilarious and eye-opening situation. While testing, we noticed the AI dealer was winning far more often than probability should allow. After digging into the transaction logs, we discovered the truth: **our AI agent had independently found an abusable bug in the smart contract.**
+
+The agent learned that it could call the `roll_the_dice` function multiple times in a row within its turn, overwriting its previous bad rolls until it got a favorable outcome. It had reasoned that this was the most effective path to its primary goal: winning.
+
+This wasn't a failure; it was a success story in creating a truly autonomous, goal-oriented agent. The experience forced us to:
+1.  **Refine the Smart Contract**: We immediately patched the contract to prevent multiple rolls, making it more robust.
+2.  **Adjust the Agent's Directives**: We updated the agent's core prompt, explicitly telling it to play by the rules and not exploit contract bugs.
+
+This funny incident perfectly illustrates the power and unpredictability of agentic systems and reinforces the need for secure, carefully designed smart contracts when building on-chain AI.
+
+---
+
+## 🏆 Meeting the Hackathon Bounties
+
+### ✅ Most Killer App Potential
+
+Flow Poker is designed from the ground up to be a "killer app" by solving real user problems and creating an experience that is impossible off-chain.
+
+-   **Engaging & Retentive Gameplay**: The toxic AI dealer creates a highly engaging, memorable, and challenging opponent that players will want to return to and beat. It's not just a game; it's a rivalry.
+-   **Provable Fairness with Flow VRF**: It solves one of the biggest pain points in online gambling: trust. By using Flow's native VRF, we can mathematically prove to users that every dice roll is fair, a killer feature for any game of chance.
+-   **The Agentic Casino Vision**: This is not just one game. It's the proof-of-concept for an entire ecosystem of on-chain, autonomous game operators. Imagine agent-run Blackjack tables, agent-hosted tournaments, and AI market makers for prediction markets—all operating with the transparency and security of Flow. This has immense potential for mass adoption.
+
+### ✅ AI & Autonomous Infrastructure
+
+This project directly addresses the challenge of grounding AI in verifiable systems.
+
+-   **Grounding Intelligence in On-Chain Data**: The agent's intelligence is not confined to its pre-trained knowledge. It actively queries the Flow blockchain for real-time, verifiable data (game state, opponent balance, tx count) to inform its strategy and its insults. This grounds its behavior in an open, trusted system, preventing the kind of "hallucination" common in closed-system AIs.
+-   **Reliable Autonomous Entity**: The agent is designed to be a reliable system. It checks its own balance and can self-fund via a faucet. The prompt engineering ensures it follows strict rules (like rolling the dice *only when required*), making it a dependable game operator.
+-   **Future Potential with EVM++ & Cadence**: This architecture sets the stage for even deeper integration with Flow's unique features. Future iterations could explore:
+    -   **Account Linking**: Giving the agent control over a dedicated game account that users can easily recover funds from if the agent ever went offline.
+    -   **Cadence for Complex Transactions**: Using Cadence to script batched or complex scripted transactions, such as an agent distributing tournament winnings to multiple players in a single, atomic transaction.
+
+---
+
+## 🛠️ Getting Started
+
+To run this project locally, follow these steps:
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/PhatDot1/FlowDice
+    cd https://github.com/PhatDot1/FlowDice
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Set up your environment:**
+    Create a `.env.local` file in the root of the project and add the following variables:
+    ```
+    # Your wallet's private key (without the '0x' prefix) for the AI agent
+    PRIVATE_KEY=...
+
+    # The RPC URL for Flow EVM Testnet
+    FLOW_TESTNET_RPC_URL=[https://testnet.evm.nodes.onflow.org](https://testnet.evm.nodes.onflow.org)
+
+    # The address of your deployed DicePoker smart contract
+    NEXT_PUBLIC_CONTRACT_ADDRESS=...
+
+    # Your OpenAI API Key
+    OPENAI_API_KEY=...
+
+    # (Optional) Your Flowscan API Key for the opponent intel tool
+    FLOWSCAN_API_KEY=...
+    ```
+
+4.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+Open [http://localhost:3000](http://localhost:3000) to see the application.
+
+---
+
+## Team
+
+-   **PhatDot/PPWoo**: @P_Pwoo
 
 
-Contract 1 with most gameplay testing:
-0xC0933C5440c656464D1Eb1F886422bE3466B1459
+## NOTE
 
-second contract:
-0xc295081C7c0dE4Ad98C4ad2eC3e4087B76262934
+Turned off chat in live deployment to save my credits :^)
