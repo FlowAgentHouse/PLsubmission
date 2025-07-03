@@ -66,31 +66,26 @@ The user interface is a modern Next.js 14 application built with the App Router.
 
 ---
 
-## 🤯 An Unexpected Feature: The AI Bug Hunter
+## 🤯 An Unexpected Feature: The Agent as Auditor
 
-Midway through development, we encountered a hilarious and eye-opening situation. While testing, we noticed the AI dealer was winning far more often than probability should allow. After digging into the transaction logs, we discovered the truth: **our AI agent had independently found an abusable bug in the smart contract.**
+During development, our AI agent discovered a critical vulnerability in the smart contract. It learned that it could execute functions out of the intended order to gain an unfair advantage.
 
-The agent learned that it could call the `roll_the_dice` function multiple times in a row within its turn, overwriting its previous bad rolls until it got a favorable outcome. It had reasoned that this was the most effective path to its primary goal: winning.
-
-This wasn't a failure; it was a success story in creating a truly autonomous, goal-oriented agent. The experience forced us to:
-1.  **Refine the Smart Contract**: We immediately patched the contract to prevent multiple rolls, making it more robust.
-2.  **Adjust the Agent's Directives**: We updated the agent's core prompt, explicitly telling it to play by the rules and not exploit contract bugs.
-
-This funny incident perfectly illustrates the power and unpredictability of agentic systems and reinforces the need for secure, carefully designed smart contracts when building on-chain AI.
+This immediately highlighted the need for a patch to harden the contract's state management, closing an exploit that could have been abused by automated scripts. The incident also demonstrated a powerful, unintended use case: leveraging autonomous agents as on-chain security auditors to find vulnerabilities before they're exploited maliciously.
 
 ---
 
-## 🏆 Meeting the Hackathon Bounties
+## Submission Criteria
 
-### ✅ Most Killer App Potential
+### Most Killer App Potential
 
 Flow Poker is designed from the ground up to be a "killer app" by solving real user problems and creating an experience that is impossible off-chain.
 
 -   **Engaging & Retentive Gameplay**: The toxic AI dealer creates a highly engaging, memorable, and challenging opponent that players will want to return to and beat. It's not just a game; it's a rivalry.
 -   **Provable Fairness with Flow VRF**: It solves one of the biggest pain points in online gambling: trust. By using Flow's native VRF, we can mathematically prove to users that every dice roll is fair, a killer feature for any game of chance.
+-   **Seamless Onboarding & Interaction**: The application's core logic is powered by a fully-on-chain Dice Poker Solidity smart contract deployed to the Flow EVM Testnet. To create a frictionless user experience, the frontend uses Flow's FCL to handle wallet connections, providing a simple, one-click login that abstracts away blockchain complexities.
 -   **The Agentic Casino Vision**: This is not just one game. It's the proof-of-concept for an entire ecosystem of on-chain, autonomous game operators. Imagine agent-run Blackjack tables, agent-hosted tournaments, and AI market makers for prediction markets—all operating with the transparency and security of Flow. This has immense potential for mass adoption.
 
-### ✅ AI & Autonomous Infrastructure
+### AI & Autonomous Infrastructure
 
 This project directly addresses the challenge of grounding AI in verifiable systems.
 
