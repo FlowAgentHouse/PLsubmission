@@ -16,7 +16,7 @@ const FLOW_TESTNET_CONFIG = {
   }
 }
 
-const CONTRACT_ADDRESS = "0xC0933C5440c656464D1Eb1F886422bE3466B1459"
+const CONTRACT_ADDRESS = "0xFF2B890de3C8f2eE8725678F2a2598b5C42E4fAc"
 
 let web3Modal: Web3Modal
 let provider: BrowserProvider | null = null

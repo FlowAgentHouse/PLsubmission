@@ -525,6 +525,11 @@ export default function PvEGamePage() {
   const canRoll = isMyTurn && [5, 6, 11, 12, 17, 18, 23, 24].includes(gameState)
   const canJoin = gameState === 0 && myPlayerIndex === -1 && players.includes(ZERO_ADDRESS)
 
+  const hasFoldedWinner = winner !== ZERO_ADDRESS && gameState < 25;
+  const isTieGame = isGameEnded && winner === ZERO_ADDRESS && gameState > 0;
+
+
+
   useEffect(() => {
     const handleGameOver = async () => {
       if (isGameEnded && winner !== ZERO_ADDRESS && !lastAgentMessage) {
@@ -760,7 +765,7 @@ export default function PvEGamePage() {
             )}
 
             {/* Reset Game */}
-            {isGameEnded && canReset && (
+            {(hasFoldedWinner || isTieGame || (isGameEnded && canReset)) && (
               <Button onClick={handleResetGame} disabled={isProcessing} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6">
                 {isProcessing ? (
                   <>
@@ -897,7 +902,7 @@ export default function PvEGamePage() {
           onSendMessage={handleSendChatMessage}
           isProcessing={aiThinking || isProcessing}
         />
-*/}
+*/ }
       </div>
     </div>
   )
