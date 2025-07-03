@@ -12,7 +12,7 @@ A fully on-chain, personality-driven Dice Poker experience built on the Flow blo
 
 ## 💡 The Killer App: More Than Just a Game
 
-Consumer-oriented "killer apps" are defined by their ability to create uniquely engaging experiences at scale. Flow Poker isn't just another blockchain-based card game; it's a new paradigm of interactive on-chain entertainment. It tackles the core challenges of Web3 gaming—lifeless NPCs and questionable fairness—by introducing a formidable, personality-driven AI opponent and leveraging Flow's native Verifiable Random Function (VRF) for provably fair gameplay.
+Consumer-oriented "killer apps" are defined by their ability to create uniquely engaging experiences at scale. Flow Poker isn't just another blockchain-based card game; it's a new paradigm of interactive on-chain entertainment. It tackles the core challenges of Web3 gaming, lifeless NPCs and questionable fairness, by introducing a formidable, personality-driven AI opponent and leveraging Flow's native Verifiable Random Function (VRF) for provably fair gameplay.
 
 Our vision is to build the first truly **agentic on-chain casino**, an ecosystem where autonomous AI agents, each with distinct personalities and strategies, manage games, interact with players, and operate with the full transparency and integrity of the Flow blockchain. This project is the first, crucial step towards that future.
 
@@ -22,7 +22,7 @@ Our vision is to build the first truly **agentic on-chain casino**, an ecosystem
 
 -   **Advanced AI Dealer**: A ruthless, toxic AI opponent built with LangChain that uses a ReAct framework to make strategic, on-chain decisions.
 -   **Provably Fair Randomness**: Dice rolls are powered by Flow's native Solidity VRF, ensuring that every outcome is cryptographically secure, transparent, and cannot be manipulated by the house or players.
--   **On-Chain Intelligence**: The AI grounds its behavior in reality by making real-time calls to the Flow blockchain. It checks its own balance, requests funds from the faucet when low, and—most importantly—spies on the opponent's on-chain activity to generate unique, cutting trash talk.
+-   **On-Chain Intelligence**: The AI grounds its behavior in reality by making real-time calls to the Flow blockchain. It checks its own balance, requests funds from the faucet when low, and, most importantly, spies on the opponent's on-chain activity to generate unique, cutting trash talk.
 -   **Two Full Game Modes**:
     -   **Player vs. Environment (PvE)**: Challenge the formidable AI Dealer in a battle of wits and luck.
     -   **Player vs. Player (PvP)**: Face off against other human players in a classic poker showdown.
@@ -83,7 +83,7 @@ Flow Poker is designed from the ground up to be a "killer app" by solving real u
 -   **Engaging & Retentive Gameplay**: The toxic AI dealer creates a highly engaging, memorable, and challenging opponent that players will want to return to and beat. It's not just a game; it's a rivalry.
 -   **Provable Fairness with Flow VRF**: It solves one of the biggest pain points in online gambling: trust. By using Flow's native VRF, we can mathematically prove to users that every dice roll is fair, a killer feature for any game of chance.
 -   **Seamless Onboarding & Interaction**: The application's core logic is powered by a fully-on-chain Dice Poker Solidity smart contract deployed to the Flow EVM Testnet. To create a frictionless user experience, the frontend uses Flow's FCL to handle wallet connections, providing a simple, one-click login that abstracts away blockchain complexities.
--   **The Agentic Casino Vision**: This is not just one game. It's the proof-of-concept for an entire ecosystem of on-chain, autonomous game operators. Imagine agent-run Blackjack tables, agent-hosted tournaments, and AI market makers for prediction markets—all operating with the transparency and security of Flow. This has immense potential for mass adoption.
+-   **The Agentic Casino Vision**: This is not just one game. It's the proof-of-concept for an entire ecosystem of on-chain, autonomous game operators. Imagine agent-run Blackjack tables, agent-hosted tournaments, and AI market makers for prediction markets, all operating with the transparency and security of Flow. This has immense potential for mass adoption.
 
 ### AI & Autonomous Infrastructure
 
