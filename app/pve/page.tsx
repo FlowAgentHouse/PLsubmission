@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
 import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
+import * as fcl from "@onflow/fcl"
+import "@/lib/fcl-config" // Import FCL configuration
 import Link from "next/link"
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -136,8 +138,6 @@ const InteractiveChat = ({
                         )}
                     </Button>
                 </div>
-                
-
             </CardContent>
         </Card>
     )
@@ -148,6 +148,7 @@ export default function PvEGamePage() {
   const [signer, setSigner] = useState<Signer | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>({ loggedIn: null })
 
   const [betAmount, setBetAmount] = useState("")
   const [gameState, setGameState] = useState(0)
@@ -175,8 +176,15 @@ export default function PvEGamePage() {
   const [gameStarted, setGameStarted] = useState(false)
   const [aiJoinAttempted, setAiJoinAttempted] = useState(false)
 
+  // FCL user subscription
+  useEffect(() => {
+    const unsubscribe = fcl.currentUser.subscribe(setUser)
+    return () => unsubscribe()
+  }, [])
+
   useEffect(() => {
     initWeb3()
+    // Try auto-connect for existing sessions
     autoConnectWallet().then((result) => {
       if (result) {
         setSigner(result.signer)
@@ -262,6 +270,11 @@ export default function PvEGamePage() {
     try {
       setLoading(true)
       setError(null)
+      
+      // First authenticate with FCL
+      await fcl.authenticate()
+      
+      // Then connect the EVM wallet for contract interactions
       const { signer: web3Signer } = await connectWallet()
       setSigner(web3Signer)
       const address = await web3Signer.getAddress()
@@ -274,6 +287,10 @@ export default function PvEGamePage() {
   }
 
   const handleDisconnectWallet = async () => {
+    // Disconnect FCL
+    await fcl.unauthenticate()
+    
+    // Disconnect EVM wallet
     await disconnectWallet()
     setAccount(null)
     setSigner(null)
@@ -528,8 +545,6 @@ export default function PvEGamePage() {
   const hasFoldedWinner = winner !== ZERO_ADDRESS && gameState < 25;
   const isTieGame = isGameEnded && winner === ZERO_ADDRESS && gameState > 0;
 
-
-
   useEffect(() => {
     const handleGameOver = async () => {
       if (isGameEnded && winner !== ZERO_ADDRESS && !lastAgentMessage) {
@@ -563,6 +578,7 @@ export default function PvEGamePage() {
     handleGameOver();
   }, [isGameEnded, winner, account, pot, lastAgentMessage]);
 
+  // Show connection screen if no account
   if (!account) {
     return (
       <div className="min-h-screen bg-black text-white relative flex items-center justify-center p-4">
@@ -580,6 +596,14 @@ export default function PvEGamePage() {
             </div>
             <CardTitle className="text-2xl font-bold text-white">Challenge the Dealer</CardTitle>
             <p className="text-gray-400">Connect your wallet to challenge our dealer on Flow</p>
+            
+            {/* FCL User Status */}
+            {user.loggedIn && (
+              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-400 text-sm">FCL Connected: {user.addr}</p>
+                <p className="text-gray-400 text-xs">Now connect your EVM wallet for gameplay</p>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={handleConnectWallet} disabled={loading} className="w-full flow-button text-lg py-6">
@@ -604,7 +628,7 @@ export default function PvEGamePage() {
           <div className="flex items-center space-x-4">
             <Link href="/" className="text-green-400 hover:text-green-300 transition-colors"><ArrowLeft className="w-6 h-6" /></Link>
             <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center"><Bot className="w-6 h-6 text-white" /></div>
-            <div><h1 className="text-3xl font-bold text-white">Challenge the Dealer</h1><p className="text-gray-400">Flow EVM Testnet</p></div>
+            <div><h1 className="text-3xl font-bold text-white">Challenge the Dealer</h1><p className="text-gray-400">Flow EVM Testnet {user.loggedIn && <span className="text-blue-400">• FCL Connected</span>}</p></div>
           </div>
           <div className="flex items-center space-x-4">
             <Badge variant="outline" className="border-green-500 text-green-400"><Wallet className="w-4 h-4 mr-1" />{account.slice(0, 6)}...{account.slice(-4)}</Badge>
@@ -896,13 +920,13 @@ export default function PvEGamePage() {
           </CardContent>
         </Card>
 
-        {/* Interactive Chat Component - TEMP DISABLED SO PEOPLE DONT KILL MY CREDIT USAGE }
+        {/* Interactive Chat Component */}
         <InteractiveChat 
           history={chatHistory} 
           onSendMessage={handleSendChatMessage}
           isProcessing={aiThinking || isProcessing}
         />
-*/ }
+
       </div>
     </div>
   )

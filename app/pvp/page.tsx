@@ -15,6 +15,8 @@ import {
 } from "lucide-react"
 import { formatEther, parseEther } from "ethers"
 import { initWeb3, connectWallet, disconnectWallet, getDicePokerContract, checkContractExists, autoConnectWallet } from "@/lib/web3"
+import * as fcl from "@onflow/fcl"
+import "@/lib/fcl-config" // Import FCL configuration
 import Link from "next/link"
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -61,6 +63,7 @@ export default function PvPGamePage() {
   const [signer, setSigner] = useState<Signer | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>({ loggedIn: null })
 
   const [betAmount, setBetAmount] = useState("")
   const [gameState, setGameState] = useState(0)
@@ -78,6 +81,12 @@ export default function PvPGamePage() {
   const [winner, setWinner] = useState<string>(ZERO_ADDRESS)
   const [gameStarted, setGameStarted] = useState(false)
   const [gameEndedTimestamp, setGameEndedTimestamp] = useState(0)
+
+  // FCL user subscription
+  useEffect(() => {
+    const unsubscribe = fcl.currentUser.subscribe(setUser)
+    return () => unsubscribe()
+  }, [])
 
   useEffect(() => {
     initWeb3()
@@ -146,6 +155,11 @@ export default function PvPGamePage() {
     try {
       setLoading(true)
       setError(null)
+      
+      // First authenticate with FCL
+      await fcl.authenticate()
+      
+      // Then connect the EVM wallet for contract interactions
       const { provider: web3Provider, signer: web3Signer } = await connectWallet()
       setProvider(web3Provider)
       setSigner(web3Signer)
@@ -160,6 +174,10 @@ export default function PvPGamePage() {
   }
 
   const handleDisconnectWallet = async () => {
+    // Disconnect FCL
+    await fcl.unauthenticate()
+    
+    // Disconnect EVM wallet
     await disconnectWallet()
     setAccount(null)
     setProvider(null)
@@ -392,6 +410,14 @@ export default function PvPGamePage() {
             </div>
             <CardTitle className="text-2xl font-bold text-white">Player vs Player</CardTitle>
             <p className="text-gray-400">Connect your wallet to challenge other players on Flow</p>
+            
+            {/* FCL User Status */}
+            {user.loggedIn && (
+              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-400 text-sm">FCL Connected: {user.addr}</p>
+                <p className="text-gray-400 text-xs">Now connect your EVM wallet for gameplay</p>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <Button
@@ -437,7 +463,7 @@ export default function PvPGamePage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-white">Player vs Player</h1>
-              <p className="text-gray-400">Flow EVM Testnet</p>
+              <p className="text-gray-400">Flow EVM Testnet {user.loggedIn && <span className="text-blue-400">• FCL Connected</span>}</p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
