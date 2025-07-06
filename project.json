@@ -1,0 +1,34 @@
+{
+    "name": "Flow Poker: The On-Chain Agent-Ran Casino",
+    "tagline": "A fully on-chain Dice Poker experience on Flow, powered by AI agents.",
+    "description": "Flow Poker is a fully on-chain, agent-powered Dice Poker experience built on the Flow blockchain. It features a ruthless AI dealer powered by LangChain with On-chain Contract Interaction, ReAct agent architecture, and Retrieval-Augmented Generation (RAG) for decisionmaking and user communication, grounded in live on-chain data. Gameplay is secured by Flow's native VRF for provably fair randomness, and the AI autonomously manages its wallet, strategizes, and interacts with players using real-time blockchain intelligence. The project demonstrates a cutting-edge agentic casino concept blending blockchain transparency, verifiable randomness, and autonomous personality-driven agents.",
+    "team": [
+      {
+        "name": "ZZZ Team",
+        "email": "zzzprojects0.0@gmail.com"
+      }
+    ],
+    "demo_url": "https://v0-modern-gambling-website-zeta.vercel.app/",
+    "video_url": "https://drive.google.com/file/d/1g8sMItLkBn1GfefSiGHfEpOAVP2EI3qz/view?usp=sharing",
+    "technologies": [
+      "Next.js",
+      "React",
+      "Tailwind CSS",
+      "shadcn/ui",
+      "TypeScript",
+      "LangChain",
+      "LangGraph",
+      "OpenAI GPT-4",
+      "ReAct Agent Architecture",
+      "Agentic Autonomous Infrastructure",
+      "Retrieval-Augmented Generation (RAG)",
+      "On-Chain Intelligence Gathering",
+      "Flow EVM Testnet",
+      "Flow Native VRF",
+      "Solidity",
+      "viem",
+      "ethers.js",
+      "On-Chain Agents",
+      "FCL (Flow Client Library)"
+    ]
+  }

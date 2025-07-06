@@ -3,7 +3,7 @@ import { agentAccount, publicClient, walletClient } from '@/lib/viem-clients'
 import { getContract, formatEther } from 'viem'
 import DicePokerABI from '@/abi/DicePoker.json'
 
-// CRITICAL: This tells Next.js this route should be dynamic, not static
+// This tells Next.js this route should be dynamic, not static
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

@@ -56,7 +56,7 @@ export async function POST(request: Request) {
                 "Congratulations! You beat an AI! *slow clap* Now do it again when I'm not holding back.",
             ];
 
-            // **THE FIX:** Only add contextual insults if we successfully fetched the intel
+            //  Only add contextual insults if we successfully fetched the intel
             if (opponentIntel) {
                 if (opponentIntel.balance > 20) {
                     lossInsults.push(`Lucky win with ${opponentIntel.balanceFormatted} FLOW left. Care to risk it all again?`);
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
                 "You played exactly as my algorithms predicted. Boring, but profitable. Again?",
             ];
 
-            // **THE FIX:** Only add contextual insults if we successfully fetched the intel
+            //  Only add contextual insults if we successfully fetched the intel
             if (opponentIntel) {
                 if (opponentIntel.balance > 10) {
                     winInsults.push(`I took ${finalPot} FLOW but you still have ${opponentIntel.balanceFormatted} left. Not for long...`);
