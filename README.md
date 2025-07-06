@@ -4,7 +4,7 @@ A fully on-chain, personality-driven Dice Poker experience built on the Flow blo
 
 **Live Demo:** [PLAY HERE](https://v0-modern-gambling-website-zeta.vercel.app/)
 
-**Video Walkthrough:** [WATCH HERE]()
+**Video Walkthrough:** [WATCH HERE](https://drive.google.com/file/d/1g8sMItLkBn1GfefSiGHfEpOAVP2EI3qz/view?usp=sharing)
 
 **Fully On-Chain Dice Poker Contract on Flow EVM Testnet:** `0xC0933C5440c656464D1Eb1F886422bE3466B1459`
 
