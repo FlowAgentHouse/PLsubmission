@@ -218,12 +218,6 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 
 ---
 
-## Team
-
--   **PhatDot/PPWoo**: @P_Pwoo
-
----
-
 ## NOTE
 
 Chat functionality is temporarily disabled in the live deployment to manage API costs, but can be easily enabled by uncommenting the chat component in the PvE page. The agent's autonomous gameplay and trash talk during game actions remain fully functional.
