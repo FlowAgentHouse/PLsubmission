@@ -1,4 +1,4 @@
-# 🎲 Flow Poker: The On-Chain Agent-Ran Casino
+# 🎲 AgentHouse: The On-Chain Agent-Ran Casino
 
 A fully on-chain, personality-driven Dice Poker experience built on the Flow blockchain, featuring a toxic AI dealer powered by LangChain and grounded in verifiable on-chain data.
 

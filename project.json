@@ -1,7 +1,7 @@
 {
-    "name": "Flow Poker: The On-Chain Agent-Ran Casino",
+    "name": "AgentHouse: The On-Chain Agent-Ran Casino",
     "tagline": "A fully on-chain Dice Poker experience on Flow, powered by AI agents.",
-    "description": "Flow Poker is a fully on-chain, agent-powered Dice Poker experience built on the Flow blockchain. It features a ruthless AI dealer powered by LangChain with On-chain Contract Interaction, ReAct agent architecture, and Retrieval-Augmented Generation (RAG) for decisionmaking and user communication, grounded in live on-chain data. Gameplay is secured by Flow's native VRF for provably fair randomness, and the AI autonomously manages its wallet, strategizes, and interacts with players using real-time blockchain intelligence. The project demonstrates a cutting-edge agentic casino concept blending blockchain transparency, verifiable randomness, and autonomous personality-driven agents.",
+    "description": "AgentHouse is a fully on-chain, agent-powered Dice Poker experience built on the Flow blockchain. It features a ruthless AI dealer powered by LangChain with On-chain Contract Interaction, ReAct agent architecture, and Retrieval-Augmented Generation (RAG) for decisionmaking and user communication, grounded in live on-chain data. Gameplay is secured by Flow's native VRF for provably fair randomness, and the AI autonomously manages its wallet, strategizes, and interacts with players using real-time blockchain intelligence. The project demonstrates a cutting-edge agentic casino concept blending blockchain transparency, verifiable randomness, and autonomous personality-driven agents.",
     "team": [
       {
         "name": "ZZZ Team",
